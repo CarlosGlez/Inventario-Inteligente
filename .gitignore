@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env.local
+.env
+
+datos_migrados.sql
+__pycache__/
+*.pyc
+supabase/functions/.env
+supabase/.temp/
