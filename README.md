@@ -2,7 +2,7 @@
 
 Proyecto 2 · versión **React (Vite) + Supabase**.
 
-Un bot revisa el inventario cada minuto, detecta los productos por debajo de su stock mínimo y avisa por correo. La página permite administrar productos, registrar entradas y salidas, importar y exportar Excel, y estima cuándo se agotará cada producto.
+Un bot revisa el inventario cada minuto, detecta los productos por debajo de su stock mínimo y avisa por correo. Cada lunes manda además un reporte semanal con todo el inventario y sus movimientos. La página permite administrar productos, registrar entradas y salidas, importar y exportar Excel, y estima cuándo se agotará cada producto.
 
 Es la misma aplicación que la versión Flask + SQLite, con una diferencia importante: **el bot vive en la nube**. Ya no hace falta dejar una computadora encendida.
 
@@ -17,13 +17,15 @@ Es la misma aplicación que la versión Flask + SQLite, con una diferencia impor
 │ Alertas          │─botón──▶ Edge Function ──────────┘        │
 └──────────────────┘        │  "revisar-inventario" ──SMTP 465─┼──▶ Gmail
                             │      ▲                           │
-                            │ pg_cron (cada minuto) + pg_net   │
+                            │ pg_cron + pg_net:                │
+                            │  · cada minuto: revisar stock    │
+                            │  · cada lunes: reporte semanal   │
                             └──────────────────────────────────┘
 ```
 
 | Carpeta | Qué contiene |
 |---|---|
-| `supabase/migrations/` | Los cuatro archivos SQL que crean la base, sus reglas, la seguridad y el reloj del bot |
+| `supabase/migrations/` | Los archivos SQL que crean la base, sus reglas, la seguridad, el reporte semanal y los relojes del bot |
 | `supabase/functions/revisar-inventario/` | El bot (Edge Function) |
 | `supabase/tests/` | Pruebas de la base de datos |
 | `web/` | La página (React + Vite) |
@@ -54,8 +56,9 @@ En el panel abre **SQL Editor**. Para cada archivo, en este orden, pega su conte
 1. `supabase/migrations/0001_tablas.sql`
 2. `supabase/migrations/0002_funciones.sql`
 3. `supabase/migrations/0003_seguridad.sql`
+4. `supabase/migrations/0005_reporte_semanal.sql`
 
-El `0004_cron.sql` se corre más adelante, en el paso 6.
+Los dos archivos de reloj (`0004_cron.sql` y `0006_cron_reporte.sql`) se corren más adelante, en el paso 6.
 
 **Comprobación (opcional):** pega `supabase/tests/flujo.sql` y pulsa Run. Debe responder `TODAS LAS PRUEBAS PASARON`. No deja datos: todo se deshace al terminar.
 
@@ -116,7 +119,7 @@ select vault.create_secret('https://TU-PROJECT-REF.supabase.co', 'project_url');
 select vault.create_secret('EL-MISMO-VALOR-QUE-CRON_SECRET', 'cron_secret');
 ```
 
-Después pega `supabase/migrations/0004_cron.sql` y pulsa Run.
+Después pega `supabase/migrations/0004_cron.sql` y pulsa Run. Haz lo mismo con `supabase/migrations/0006_cron_reporte.sql`, que programa el reporte semanal para los lunes a las 8:00 am (hora del centro de México).
 
 **Comprobación:** espera un minuto y ejecuta:
 
@@ -128,7 +131,7 @@ select created, status_code, content from net._http_response order by created de
 - `401` → el valor de `cron_secret` en Vault no es igual al secret `CRON_SECRET`.
 - `404` → la función no está desplegada o `project_url` está mal escrito.
 
-El mismo archivo `0004_cron.sql` trae comentados los comandos para pausar el bot, cambiar el intervalo o quitarlo.
+Los dos archivos traen comentados los comandos para pausar cada reloj, cambiar su horario o quitarlo.
 
 ### 7. Correr la página en Windows
 
@@ -166,6 +169,23 @@ Se crea `datos_migrados.sql`. Pega su contenido en **SQL Editor** y pulsa Run.
 - Conserva productos, movimientos, alertas y la marca de "ya avisado", para que el bot no repita avisos viejos.
 - Si las tablas ya tienen datos, se detiene sin cambiar nada. Hazlo antes de capturar productos nuevos.
 
+## Si ya tenías el proyecto funcionando: agregar correos con formato y reporte semanal
+
+Son tres pasos, en este orden:
+
+1. En **SQL Editor**, pega `supabase/migrations/0005_reporte_semanal.sql` y pulsa Run.
+2. Vuelve a desplegar la función, desde la carpeta `InventarioReact`:
+
+   ```powershell
+   npx supabase functions deploy revisar-inventario
+   ```
+
+3. En **SQL Editor**, pega `supabase/migrations/0006_cron_reporte.sql` y pulsa Run.
+
+No hay secrets nuevos. Para probarlo sin esperar al lunes, abre **Historial de alertas** y pulsa **Enviar reporte ahora**.
+
+A partir del redespliegue, todas las alertas salen con formato, incluidas las que reintentes.
+
 ## Dónde vive cada clave
 
 | Clave | Dónde está | Quién la puede ver |
@@ -180,8 +200,8 @@ Nunca pongas la llave maestra ni la contraseña del correo en `web/` ni en Git. 
 
 | Qué prueba | Cómo se corre | Cuántas |
 |---|---|---|
-| Lógica de la página y del bot | `cd web` y luego `npm test` | 114 |
-| Reglas de la base de datos | Pegar `supabase/tests/flujo.sql` en SQL Editor | 22 |
+| Lógica de la página, del bot y de los correos | `cd web` y luego `npm test` | 151 |
+| Reglas de la base de datos | Pegar `supabase/tests/flujo.sql` en SQL Editor | 27 |
 | Migración de datos | `py -m unittest herramientas\test_migrar.py` | 7 |
 
 Cubren lo mismo que las pruebas de la versión Flask: importación de todo o nada, códigos sin duplicar, stock que nunca queda negativo, una alerta por episodio, alerta nueva tras recuperarse, reintento de correos fallidos, costos y pronóstico.
@@ -202,7 +222,10 @@ Cubren lo mismo que las pruebas de la versión Flask: importación de todo o nad
 | `npm install` tarda mucho o falla con errores `EPERM` | La carpeta está dentro de OneDrive, que intenta sincronizar miles de archivos de `node_modules`. Pausa la sincronización de OneDrive mientras instalas, o copia el proyecto a una carpeta fuera de OneDrive, por ejemplo `C:\proyectos` |
 | `npm install` avisa de **2 moderate severity vulnerabilities** | Vienen de `uuid`, una dependencia de la librería de Excel. El fallo está en funciones (`v3`, `v5`, `v6`) que esta librería no usa; solo usa `v4`. No ejecutes `npm audit fix --force`: instala una versión antigua de la librería de Excel |
 
-**Límite conocido:** la página carga hasta 1000 productos por consulta, que es el máximo por defecto de Supabase. Para un inventario mayor habría que agregar paginación.
+**Límites conocidos:**
+
+- La página carga hasta 1000 productos por consulta, que es el máximo por defecto de Supabase. Para un inventario mayor habría que agregar paginación.
+- Gmail recorta los correos de más de unos 100 KB. El reporte semanal con decenas de productos cabe sin problema; con varios cientos saldría recortado y convendría adjuntar un archivo.
 
 ## Explicación sencilla de cada pieza
 
@@ -215,6 +238,8 @@ Cubren lo mismo que las pruebas de la versión Flask: importación de todo o nad
 - **Episodios.** Cada producto tiene una marca `low_active`. Al avisar se enciende; mientras esté encendida no se repite el aviso. Cuando el stock vuelve al mínimo se apaga sola (un trigger), y si vuelve a caer se avisa otra vez.
 - **Seguridad (`0003`).** RLS activado en las cuatro tablas. Sin sesión no se ve nada. Con sesión se administra el inventario, pero movimientos y alertas solo se leen.
 - **El bot.** `pg_cron` es un reloj dentro de la base. Cada minuto llama a la Edge Function, que pide la alerta nueva, manda el correo y guarda el resultado.
+- **Correos con formato.** La base guarda los datos de cada alerta; `plantillas.ts` los convierte en un correo HTML con encabezado rojo y una tabla de productos. Se manda junto con la versión de texto, por si el lector de correo no muestra formato. Los textos se "escapan" para que un nombre con símbolos no rompa el correo.
+- **Reporte semanal.** Un segundo reloj llama a la misma función cada lunes. La base toma una "foto" del inventario y de los movimientos de los últimos 7 días, y el correo la muestra en tres bloques: resumen, inventario completo y movimientos. Queda en el mismo historial que las alertas, con su estado y su botón de reintentar.
 - **La parte inteligente.** Con las salidas de los últimos 30 días se calcula el consumo diario. De ahí salen los días que le quedan a cada producto y cuánto conviene comprar para cubrir el mínimo o 14 días.
 - **La página.** React solo muestra y pide. Valida el Excel antes de enviarlo y calcula el pronóstico con los datos que entrega la base.
 
@@ -227,8 +252,9 @@ Cubren lo mismo que las pruebas de la versión Flask: importación de todo o nad
 5. Revisa de nuevo: aparece una alerta nueva para esa nueva caída.
 6. Intenta una salida mayor que el stock: se rechaza.
 7. Importa un Excel con una fila mala: no se guarda ninguna y el mensaje dice qué fila corregir.
-8. Cierra la página, cambia un stock desde el panel de Supabase y espera un minuto: el correo llega aunque nadie tenga la página abierta.
-9. Abre la página en el celular para mostrar la vista de tarjetas.
+8. Cierra la página, cambia un stock desde el panel de Supabase y espera un minuto: el correo llega aunque nadie tenga la página abierta. Muestra el correo: encabezado rojo y tabla de productos.
+9. En **Historial de alertas** pulsa **Enviar reporte ahora** y muestra el correo del reporte semanal. Explica que normalmente sale solo cada lunes.
+10. Abre la página en el celular para mostrar la vista de tarjetas.
 
 ## Qué cambió respecto a la versión Flask
 

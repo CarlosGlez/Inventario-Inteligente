@@ -115,7 +115,12 @@ export function revisarAhora() {
   return llamarBot({});
 }
 
-/** Botón "Reintentar envío". */
+/** Botón "Enviar reporte ahora": crea el reporte semanal y lo manda. */
+export function enviarReporte() {
+  return llamarBot({ accion: "reporte" });
+}
+
+/** Botón "Reintentar envío". Sirve igual para alertas y para reportes. */
 export function reintentarAlerta(id) {
   return llamarBot({ alert_id: id });
 }

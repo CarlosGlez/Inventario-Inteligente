@@ -36,6 +36,14 @@ export function avisoReintento(status) {
   return { tipo: status === "error" ? "error" : "info", texto: `Reintento: ${detalle}.` };
 }
 
+/** Aviso tras pulsar "Enviar reporte ahora". */
+export function avisoReporte(status) {
+  if (status === "enviado") return { tipo: "success", texto: "Reporte semanal enviado por correo." };
+  if (status === "simulado") return { tipo: "info", texto: "Reporte simulado y guardado. No se envió ningún correo real." };
+  if (status === "error") return { tipo: "error", texto: "El reporte se guardó, pero falló el correo. Puedes reintentar aquí mismo." };
+  return { tipo: "info", texto: "El reporte se está enviando." };
+}
+
 /** ¿Se muestra el botón "Reintentar envío" en esta alerta? */
 export function puedeReintentar(alerta, ahora = new Date()) {
   if (alerta.status === "error") return true;

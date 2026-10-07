@@ -2,9 +2,10 @@
 // Deno, así que aquí se prueba con dependencias falsas.
 import net from "node:net";
 import { describe, expect, it, vi } from "vitest";
-import { configCorreo } from "../../supabase/functions/revisar-inventario/correo.ts";
+import { configCorreo, mensajeCorreo } from "../../supabase/functions/revisar-inventario/correo.ts";
 import {
   entregarAlerta,
+  enviarReporte,
   esLlamadaPermitida,
   manejar,
   revisar,
@@ -21,16 +22,32 @@ const COMPLETO = {
 
 const ALERTA = { id: 7, subject: "Alerta de inventario: 1 producto(s) con stock bajo", body: "Cuerpo del correo" };
 
+// Una alerta y un reporte como los guarda la base, con sus datos para el correo con formato.
+const ALERTA_CON_DATOS = {
+  ...ALERTA, id: 8, tipo: "stock_bajo",
+  items: [{ id: 1, codigo: "C1", nombre: "Tóner", stock_actual: 1, stock_minimo: 4, costo: 1250.5, faltante: 3, costo_reponer: 3751.5 }],
+};
+const REPORTE = {
+  id: 12, tipo: "reporte_semanal", subject: "Reporte semanal de inventario: 30/09/2026 al 07/10/2026", body: "Texto del reporte",
+  items: {
+    desde: "2026-10-01T03:00:00Z", hasta: "2026-10-08T03:00:00Z", resumen: { total: 1, bajos: 1, valor: 1250.5, reponer: 3751.5 },
+    productos: [{ codigo: "C1", nombre: "Tóner", categoria: "Oficina", stock_actual: 1, stock_minimo: 4, costo: 1250.5, valor: 1250.5, bajo: true }],
+    movimientos: [], entradas: 0, salidas: 0,
+  },
+};
+
 // Dependencias falsas: una base de datos de mentira que recuerda los estados.
 function depsFalsos(cambios = {}) {
-  const estados = new Map([[7, "pendiente"], [3, "pendiente"]]);
+  const estados = new Map([[7, "pendiente"], [3, "pendiente"], [8, "pendiente"]]);
+  const guardadas = new Map([[8, ALERTA_CON_DATOS], [12, REPORTE]]);
   return {
     env: {},
     reclamar: vi.fn(async (id) => {
       if (!["pendiente", "error"].includes(estados.get(id))) return null;
       estados.set(id, "enviando");
-      return { ...ALERTA, id };
+      return guardadas.get(id) ?? { ...ALERTA, id };
     }),
+    crearReporte: vi.fn(async () => { estados.set(12, "pendiente"); return 12; }),
     estadoActual: vi.fn(async (id) => estados.get(id) ?? null),
     cerrar: vi.fn(async (id, status) => { estados.set(id, status); }),
     enviar: vi.fn(async () => {}),
@@ -71,7 +88,46 @@ describe("configCorreo", () => {
   });
 });
 
+describe("mensajeCorreo", () => {
+  const config = configCorreo(COMPLETO);
+
+  it("arma el correo con versión de texto y versión con formato", () => {
+    expect(mensajeCorreo(config, { subject: "Asunto", body: "Texto", html: "<p>Formato</p>" })).toEqual({
+      from: "equipo@escuela.mx", to: "almacen@escuela.mx", subject: "Asunto", text: "Texto", html: "<p>Formato</p>",
+    });
+  });
+
+  it("sin formato manda solo el texto", () => {
+    const mensaje = mensajeCorreo(config, { subject: "Asunto", body: "Texto" });
+    expect(mensaje).toEqual({ from: "equipo@escuela.mx", to: "almacen@escuela.mx", subject: "Asunto", text: "Texto" });
+    expect("html" in mensaje).toBe(false);
+  });
+
+  it("no arma nada en modo demostración", () => {
+    expect(() => mensajeCorreo({ modo: "demo" }, { subject: "A", body: "B" })).toThrow("No hay configuración SMTP");
+  });
+});
+
 describe("entregarAlerta", () => {
+  it("manda la alerta con formato: encabezado y tabla de productos", async () => {
+    const deps = depsFalsos({ env: COMPLETO });
+    expect(await entregarAlerta(deps, 8)).toBe("enviado");
+    const correo = deps.enviar.mock.calls[0][1];
+    expect(correo.subject).toBe(ALERTA.subject);
+    expect(correo.body).toBe("Cuerpo del correo");              // la versión de texto se conserva
+    expect(correo.html).toContain("Alerta de stock bajo");
+    expect(correo.html).toContain(">Tóner</td>");
+    expect(correo.html).toContain("$3,751.50");
+  });
+
+  it("si los datos guardados no sirven para el formato, manda el correo solo como texto", async () => {
+    const deps = depsFalsos({ env: COMPLETO });   // la alerta 7 no trae productos
+    expect(await entregarAlerta(deps, 7)).toBe("enviado");
+    const correo = deps.enviar.mock.calls[0][1];
+    expect(correo.body).toBe("Cuerpo del correo");
+    expect(correo.html).toBeUndefined();
+  });
+
   it("sin secrets marca la alerta como simulada y no envía nada", async () => {
     const deps = depsFalsos();
     expect(await entregarAlerta(deps, 7)).toBe("simulado");
@@ -134,6 +190,33 @@ describe("revisar", () => {
   it("si otra revisión ya tomó la alerta nueva, informa su estado actual", async () => {
     const deps = depsFalsos({ crearAlerta: vi.fn(async () => 7), pendientes: vi.fn(async () => []) });
     expect(await revisar(deps)).toEqual({ alert_id: 7, status: "pendiente", otras: [] });
+  });
+});
+
+describe("enviarReporte", () => {
+  it("crea el reporte y lo manda con su formato", async () => {
+    const deps = depsFalsos({ env: COMPLETO });
+    expect(await enviarReporte(deps)).toEqual({ alert_id: 12, status: "enviado" });
+    expect(deps.crearReporte).toHaveBeenCalledTimes(1);
+    const correo = deps.enviar.mock.calls[0][1];
+    expect(correo.subject).toBe(REPORTE.subject);
+    expect(correo.html).toContain("Reporte semanal de inventario");
+    expect(correo.html).toContain("Inventario completo");
+    expect(deps.cerrar).toHaveBeenCalledWith(12, "enviado", null);
+  });
+
+  it("sin secrets el reporte queda simulado", async () => {
+    const deps = depsFalsos();
+    expect(await enviarReporte(deps)).toEqual({ alert_id: 12, status: "simulado" });
+    expect(deps.enviar).not.toHaveBeenCalled();
+  });
+
+  it("si el correo falla el reporte queda en error y se puede reintentar", async () => {
+    const deps = depsFalsos({ env: COMPLETO, enviar: vi.fn(async () => { throw new Error("Connection timeout"); }) });
+    expect(await enviarReporte(deps)).toEqual({ alert_id: 12, status: "error" });
+    expect(deps.cerrar).toHaveBeenCalledWith(12, "error", "Connection timeout");
+    deps.enviar.mockImplementation(async () => {});
+    expect(await entregarAlerta(deps, 12)).toBe("enviado");     // el botón "Reintentar envío"
   });
 });
 
@@ -217,6 +300,53 @@ describe("manejar (la puerta de entrada HTTP)", () => {
       headers: { Authorization: "Bearer token-valido" }, body: JSON.stringify({ alert_id: "abc" }),
     }), depsFalsos());
     expect(respuesta.status).toBe(400);
+  });
+
+  it("la acción 'reporte' crea y manda el reporte semanal, sin revisar el stock", async () => {
+    const deps = depsFalsos();
+    const respuesta = await manejar(peticion({
+      headers: { "x-cron-secret": "secreto-del-cron" }, body: JSON.stringify({ accion: "reporte" }),
+    }), deps);
+    expect(respuesta.status).toBe(200);
+    expect(await respuesta.json()).toEqual({ alert_id: 12, status: "simulado" });
+    expect(deps.crearReporte).toHaveBeenCalledTimes(1);
+    expect(deps.crearAlerta).not.toHaveBeenCalled();
+  });
+
+  it("un usuario con sesión también puede pedir el reporte", async () => {
+    const deps = depsFalsos();
+    const respuesta = await manejar(peticion({
+      headers: { Authorization: "Bearer token-valido" }, body: JSON.stringify({ accion: "reporte" }),
+    }), deps);
+    expect(respuesta.status).toBe(200);
+    expect(deps.crearReporte).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin permiso no se crea ningún reporte", async () => {
+    const deps = depsFalsos();
+    const respuesta = await manejar(peticion({ body: JSON.stringify({ accion: "reporte" }) }), deps);
+    expect(respuesta.status).toBe(401);
+    expect(deps.crearReporte).not.toHaveBeenCalled();
+  });
+
+  it("una acción desconocida responde 400 y no hace nada", async () => {
+    const deps = depsFalsos();
+    const respuesta = await manejar(peticion({
+      headers: { "x-cron-secret": "secreto-del-cron" }, body: JSON.stringify({ accion: "borrar-todo" }),
+    }), deps);
+    expect(respuesta.status).toBe(400);
+    expect(await respuesta.json()).toEqual({ error: "Acción desconocida: borrar-todo." });
+    expect(deps.crearAlerta).not.toHaveBeenCalled();
+    expect(deps.crearReporte).not.toHaveBeenCalled();
+  });
+
+  it("la acción 'revisar' explícita hace la revisión normal", async () => {
+    const deps = depsFalsos();
+    const respuesta = await manejar(peticion({
+      headers: { "x-cron-secret": "secreto-del-cron" }, body: JSON.stringify({ accion: "revisar" }),
+    }), deps);
+    expect(await respuesta.json()).toEqual({ alert_id: null, status: null, otras: [] });
+    expect(deps.crearAlerta).toHaveBeenCalledTimes(1);
   });
 
   it("si la base falla responde 500 con el motivo", async () => {

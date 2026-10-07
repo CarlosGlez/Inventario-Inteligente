@@ -17,6 +17,7 @@ vi.mock("../src/lib/api.js", () => ({
   listarAlertas: vi.fn(),
   revisarAhora: vi.fn(),
   reintentarAlerta: vi.fn(),
+  enviarReporte: vi.fn(),
   iniciarSesion: vi.fn(),
   cerrarSesion: vi.fn(),
   obtenerSesion: vi.fn(),
@@ -242,6 +243,72 @@ describe("Historial de alertas", () => {
     api.revisarAhora.mockRejectedValue(new Error("Tu sesión expiró. Vuelve a iniciar sesión."));
     abrir("/alertas");
     fireEvent.click(await screen.findByRole("button", { name: "Revisar inventario ahora" }));
+    expect(await screen.findByText("Tu sesión expiró. Vuelve a iniciar sesión.")).toBeTruthy();
+  });
+});
+
+describe("Reporte semanal", () => {
+  const reporte = (cambios) => ({
+    id: 4, tipo: "reporte_semanal", created_at: "2026-10-05T14:00:00Z", status: "enviado", attempts: 1,
+    last_attempt_at: "2026-10-05T14:00:02Z", error: null,
+    subject: "Reporte semanal de inventario: 28/09/2026 al 05/10/2026", body: "Reporte semanal de inventario\nPeriodo: 28/09/2026 al 05/10/2026",
+    items: {
+      desde: "2026-09-28T14:00:00Z", hasta: "2026-10-05T14:00:00Z",
+      resumen: { total: 16, bajos: 6, valor: 7138.5, reponer: 742.5 },
+      productos: [{ codigo: "P003" }, { codigo: "P008" }],
+      movimientos: [{ codigo: "P003", tipo: "salida", cantidad: 3 }],
+      entradas: 20, salidas: 23,
+    },
+    ...cambios,
+  });
+
+  it("el reporte aparece en el historial con su resumen, junto a las alertas", async () => {
+    api.listarAlertas.mockResolvedValue([
+      reporte({}),
+      { id: 1, created_at: "2026-10-05T19:20:15Z", status: "simulado", attempts: 1, last_attempt_at: null, error: null, subject: "Asunto", body: "Cuerpo",
+        items: [{ id: 1, codigo: "P003", nombre: "Bolígrafo azul", stock_actual: 7, stock_minimo: 12, costo: 45, faltante: 5, costo_reponer: 225 }] },
+    ]);
+    abrir("/alertas");
+    const tarjeta = (await screen.findByText("Reporte semanal #4")).closest("article");
+    expect(within(tarjeta).getByText("Enviado")).toBeTruthy();
+    expect(within(tarjeta).getByText(/16 producto\(s\) · 1 movimiento\(s\)/)).toBeTruthy();
+    expect(within(tarjeta).getByText("$7,138.50")).toBeTruthy();
+    expect(within(tarjeta).getByText(/Entradas: 20 u\. · Salidas: 23 u\./)).toBeTruthy();
+    expect(within(tarjeta).getByText("Reporte semanal de inventario: 28/09/2026 al 05/10/2026")).toBeTruthy();
+    expect(screen.getByText("Alerta #1")).toBeTruthy();     // las alertas se siguen viendo igual
+  });
+
+  it("'Enviar reporte ahora' pide el reporte al bot, avisa y recarga el historial", async () => {
+    api.enviarReporte.mockResolvedValue({ alert_id: 4, status: "enviado" });
+    abrir("/alertas");
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar reporte ahora" }));
+    expect(await screen.findByText("Reporte semanal enviado por correo.")).toBeTruthy();
+    expect(api.enviarReporte).toHaveBeenCalledTimes(1);
+    expect(api.listarAlertas).toHaveBeenCalledTimes(2);
+  });
+
+  it("si el envío del reporte falla lo dice y el reporte se puede reintentar", async () => {
+    api.listarAlertas.mockResolvedValue([reporte({ status: "error", error: "Connection timeout" })]);
+    api.reintentarAlerta.mockResolvedValue({ alert_id: 4, status: "enviado" });
+    abrir("/alertas");
+    const tarjeta = (await screen.findByText("Reporte semanal #4")).closest("article");
+    expect(within(tarjeta).getByText("Connection timeout")).toBeTruthy();
+    fireEvent.click(within(tarjeta).getByRole("button", { name: "Reintentar envío" }));
+    expect(await screen.findByText("Reintento: correo enviado.")).toBeTruthy();
+    expect(api.reintentarAlerta).toHaveBeenCalledWith(4);
+  });
+
+  it("un reporte con datos incompletos no rompe la pantalla", async () => {
+    api.listarAlertas.mockResolvedValue([reporte({ items: {} }), reporte({ id: 5, items: null })]);
+    abrir("/alertas");
+    expect(await screen.findByText("Reporte semanal #4")).toBeTruthy();
+    expect(screen.getByText("Reporte semanal #5")).toBeTruthy();
+  });
+
+  it("si el bot rechaza el reporte muestra el motivo", async () => {
+    api.enviarReporte.mockRejectedValue(new Error("Tu sesión expiró. Vuelve a iniciar sesión."));
+    abrir("/alertas");
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar reporte ahora" }));
     expect(await screen.findByText("Tu sesión expiró. Vuelve a iniciar sesión.")).toBeTruthy();
   });
 });

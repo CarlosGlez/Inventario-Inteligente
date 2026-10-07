@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avisoReintento, avisoRevision, puedeReintentar } from "../src/lib/avisos.js";
+import { avisoReintento, avisoReporte, avisoRevision, puedeReintentar } from "../src/lib/avisos.js";
 import { mensajeError } from "../src/lib/errores.js";
 
 describe("avisoRevision", () => {
@@ -27,6 +27,15 @@ describe("avisoReintento", () => {
     expect(avisoReintento("enviado")).toEqual({ tipo: "info", texto: "Reintento: correo enviado." });
     expect(avisoReintento("error")).toEqual({ tipo: "error", texto: "Reintento: el envío volvió a fallar." });
     expect(avisoReintento("enviando")).toEqual({ tipo: "info", texto: "Reintento: enviando." });
+  });
+});
+
+describe("avisoReporte", () => {
+  it("dice qué pasó con el reporte semanal", () => {
+    expect(avisoReporte("enviado")).toEqual({ tipo: "success", texto: "Reporte semanal enviado por correo." });
+    expect(avisoReporte("simulado")).toEqual({ tipo: "info", texto: "Reporte simulado y guardado. No se envió ningún correo real." });
+    expect(avisoReporte("error")).toEqual({ tipo: "error", texto: "El reporte se guardó, pero falló el correo. Puedes reintentar aquí mismo." });
+    expect(avisoReporte("enviando")).toEqual({ tipo: "info", texto: "El reporte se está enviando." });
   });
 });
 

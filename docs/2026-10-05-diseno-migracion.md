@@ -287,3 +287,14 @@ Las pruebas SQL y de Vitest se corren antes de entregar cada fase. Lo único que
 - **Proyecto en pausa.** Hasta donde sé, el plan gratuito de Supabase pausa los proyectos tras varios días sin actividad. Conviene entrar al panel un día antes de la presentación.
 - **Contraseña de aplicación.** Si la escuela desactiva las contraseñas de aplicación, el plan B es Resend; solo habría que cambiar `correo.ts`.
 - **Correo a la bandeja de spam.** Es posible con la primera alerta. Conviene mandar una de prueba antes de exponer.
+
+## 15. Ampliación del 7 de octubre: correos con formato y reporte semanal
+
+Pedida en la revisión del proyecto. No cambia nada de lo anterior; se agrega encima.
+
+- **Correos con formato.** `plantillas.ts` arma el correo HTML al momento de enviar, a partir de los datos que la alerta ya guarda en `items`. La alerta lleva encabezado rojo y una tabla de productos. Se envía junto con la versión de texto. Si los datos guardados no sirven para el formato, el correo sale solo como texto.
+- **Reporte semanal.** La tabla `alerts` gana la columna `tipo` (`stock_bajo` o `reporte_semanal`). La función `crear_reporte_semanal()` guarda una foto del inventario y de los movimientos de 7 días. Al vivir en la misma tabla, el reporte hereda los estados, el reclamo que evita correos dobles y el botón de reintentar.
+- **Bot.** La Edge Function acepta `{"accion": "reporte"}`. Un segundo reloj de `pg_cron` la llama los lunes a las 14:00 UTC, que son las 8:00 am del centro de México.
+- **Página.** Botón "Enviar reporte ahora" y una tarjeta propia para los reportes en el historial.
+- **Archivos nuevos.** `0005_reporte_semanal.sql`, `0006_cron_reporte.sql`, `plantillas.ts` y `web/tests/plantillas.test.js`.
+- **Límite.** El correo muestra hasta 100 movimientos y avisa cuántos quedaron fuera. Con cientos de productos Gmail recortaría el reporte.
