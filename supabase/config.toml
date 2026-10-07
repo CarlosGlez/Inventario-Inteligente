@@ -1,0 +1,8 @@
+# Ajustes de la Edge Function.
+#
+# verify_jwt = false: Supabase no exige un token de sesión para dejar pasar la
+# llamada. Hace falta porque pg_cron no tiene sesión de usuario. La función
+# NO queda abierta: ella misma revisa el permiso (secreto del cron o sesión
+# válida) y responde 401 a cualquier otra llamada. Ver entrega.ts.
+[functions.revisar-inventario]
+verify_jwt = false
