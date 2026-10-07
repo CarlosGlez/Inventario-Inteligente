@@ -49,3 +49,23 @@ export function configCorreo(env: Entorno): ConfigCorreo {
     to: valor("ALERT_TO"),
   };
 }
+
+export type Correo = { subject: string; body: string; html?: string };
+
+/**
+ * Arma el mensaje que se le entrega al servidor de correo.
+ * "text" es la versión de texto plano y "html" la versión con formato. Se
+ * mandan las dos: cada lector de correo muestra la que puede.
+ */
+export function mensajeCorreo(config: ConfigCorreo, correo: Correo) {
+  if (config.modo !== "smtp") {
+    throw new Error("No hay configuración SMTP para enviar el correo.");
+  }
+  return {
+    from: config.from,
+    to: config.to,
+    subject: correo.subject,
+    text: correo.body,
+    ...(correo.html ? { html: correo.html } : {}),
+  };
+}

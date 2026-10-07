@@ -1,9 +1,12 @@
 // Lógica del bot. No sabe nada de Supabase ni de SMTP: recibe "dependencias"
 // (funciones para hablar con la base y para enviar) y decide qué hacer.
 // Así se puede probar completa con dependencias falsas.
-import { configCorreo, type ConfigCorreo, type Entorno } from "./correo.ts";
+import { configCorreo, type ConfigCorreo, type Correo, type Entorno } from "./correo.ts";
+import { htmlCorreo } from "./plantillas.ts";
 
-export type AlertaReclamada = { id: number; subject: string; body: string };
+// Una fila del historial lista para enviarse. "tipo" e "items" sirven para
+// armar la versión con formato; "body" es la versión de texto.
+export type AlertaReclamada = { id: number; subject: string; body: string; tipo?: string; items?: unknown };
 
 export type Deps = {
   /** Secrets de la función (SMTP_HOST, ALERT_TO, ...). */
@@ -15,11 +18,13 @@ export type Deps = {
   /** Guarda el resultado del envío. */
   cerrar(id: number, status: string, error: string | null): Promise<void>;
   /** Manda el correo. */
-  enviar(config: ConfigCorreo, correo: { subject: string; body: string }): Promise<void>;
+  enviar(config: ConfigCorreo, correo: Correo): Promise<void>;
   /** Pide a la base la alerta de un episodio nuevo. Devuelve su id o null. */
   crearAlerta(): Promise<number | null>;
   /** Ids de las alertas que nunca se intentaron enviar. */
   pendientes(): Promise<number[]>;
+  /** Pide a la base un reporte semanal nuevo. Devuelve su id. */
+  crearReporte(): Promise<number>;
 };
 
 export type Puerta = {
@@ -51,7 +56,9 @@ export async function entregarAlerta(deps: Deps, id: number): Promise<string> {
     if (config.modo === "demo") {
       status = "simulado";
     } else {
-      await deps.enviar(config, { subject: alerta.subject, body: alerta.body });
+      // html queda sin valor si los datos guardados no sirven para el formato;
+      // en ese caso el correo sale solo como texto.
+      await deps.enviar(config, { subject: alerta.subject, body: alerta.body, html: htmlCorreo(alerta) });
       status = "enviado";
     }
   } catch (motivo) {
@@ -78,6 +85,12 @@ export async function revisar(deps: Deps): Promise<ResultadoRevision> {
     status = await deps.estadoActual(nueva); // otra revisión la tomó primero
   }
   return { alert_id: nueva, status, otras };
+}
+
+/** Crea el reporte semanal y lo envía. Lo llama el reloj semanal y el botón de la página. */
+export async function enviarReporte(deps: Deps): Promise<{ alert_id: number; status: string }> {
+  const id = await deps.crearReporte();
+  return { alert_id: id, status: await entregarAlerta(deps, id) };
 }
 
 /** Compara dos textos sin revelar, por el tiempo que tarda, cuánto coinciden. */
@@ -123,8 +136,9 @@ function json(datos: unknown, status = 200): Response {
 
 /**
  * Puerta de entrada HTTP.
- *   POST {}                 -> revisión completa
- *   POST {"alert_id": 5}    -> reintentar el envío de esa alerta
+ *   POST {}                      -> revisión completa de stock bajo
+ *   POST {"alert_id": 5}         -> reintentar el envío de esa alerta o reporte
+ *   POST {"accion": "reporte"}   -> crear y enviar el reporte semanal
  */
 export async function manejar(req: Request, deps: Deps & Puerta): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: CORS });
@@ -140,7 +154,7 @@ export async function manejar(req: Request, deps: Deps & Puerta): Promise<Respon
   });
   if (!permitida) return json({ error: "No autorizado." }, 401);
 
-  let cuerpo: { alert_id?: unknown } = {};
+  let cuerpo: { alert_id?: unknown; accion?: unknown } = {};
   try {
     const texto = await req.text();
     if (texto.trim() !== "") cuerpo = JSON.parse(texto) ?? {};
@@ -156,7 +170,10 @@ export async function manejar(req: Request, deps: Deps & Puerta): Promise<Respon
       }
       return json({ alert_id: id, status: await entregarAlerta(deps, id) });
     }
-    return json(await revisar(deps));
+    const accion = cuerpo.accion ?? "revisar";
+    if (accion === "reporte") return json(await enviarReporte(deps));
+    if (accion === "revisar") return json(await revisar(deps));
+    return json({ error: `Acción desconocida: ${String(accion)}.` }, 400);
   } catch (motivo) {
     const mensaje = motivo instanceof Error ? motivo.message : String(motivo);
     return json({ error: mensaje }, mensaje === "La alerta no existe." ? 404 : 500);

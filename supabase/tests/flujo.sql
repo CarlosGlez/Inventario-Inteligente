@@ -455,5 +455,121 @@ end $$;
 reset role;
 
 -- ---------------------------------------------------------------------------
+-- REPORTE SEMANAL (migración 0005)
+-- ---------------------------------------------------------------------------
+
+-- T40: cada fila del historial dice de qué tipo es; las alertas de siempre son 'stock_bajo'.
+do $$
+declare
+  v_id bigint;
+begin
+  perform pg_temp.limpiar();
+  perform pg_temp.producto('X1', 'Prueba', 0, 5, 10);
+  v_id := crear_alerta_stock_bajo();
+  assert (select tipo from alerts where id = v_id) = 'stock_bajo', 'T40: una alerta de stock bajo debe quedar con tipo stock_bajo';
+  perform pg_temp.debe_fallar('T40 tipo inválido',
+    $q$insert into alerts (tipo, items, subject, body) values ('otro', '[]', 'Asunto', 'Cuerpo')$q$, '23514');
+end $$;
+
+-- T41: el reporte semanal guarda una foto del inventario y los movimientos de 7 días.
+do $$
+declare
+  v_id bigint;
+  v_r alerts;
+begin
+  perform pg_temp.limpiar();
+  insert into products (codigo, nombre, categoria, stock_actual, stock_minimo, costo) values
+    ('C1', 'Tóner', 'Oficina', 1, 4, 1250.50),
+    ('C2', 'Hojas', 'Papelería', 10, 2, 99.99);
+  insert into movements (product_code, product_name, tipo, cantidad, stock_anterior, stock_nuevo, created_at) values
+    ('C2', 'Hojas', 'entrada', 8, 2, 10, now() - interval '3 days'),
+    ('C1', 'Tóner', 'salida', 2, 3, 1, now() - interval '1 day'),
+    ('C1', 'Tóner', 'salida', 5, 8, 3, now() - interval '10 days');
+
+  v_id := crear_reporte_semanal();
+  select * into v_r from alerts where id = v_id;
+
+  assert v_r.tipo = 'reporte_semanal', 'T41: tipo';
+  assert v_r.status = 'pendiente', 'T41: nace pendiente, como las alertas';
+  assert v_r.subject like 'Reporte semanal de inventario: __/__/____ al __/__/____', 'T41: asunto "' || v_r.subject || '"';
+
+  assert v_r.items -> 'resumen' ->> 'total' = '2', 'T41: total de productos';
+  assert v_r.items -> 'resumen' ->> 'bajos' = '1', 'T41: productos bajos';
+  assert v_r.items -> 'resumen' ->> 'valor' = '2250.40', 'T41: valor del inventario';
+  assert v_r.items -> 'resumen' ->> 'reponer' = '3751.50', 'T41: costo de reponer';
+
+  assert jsonb_array_length(v_r.items -> 'productos') = 2, 'T41: deben ir todos los productos';
+  assert v_r.items -> 'productos' -> 0 ->> 'codigo' = 'C2', 'T41: productos en orden alfabético por nombre';
+  assert v_r.items -> 'productos' -> 1 = jsonb_build_object(
+    'codigo', 'C1', 'nombre', 'Tóner', 'categoria', 'Oficina', 'stock_actual', 1, 'stock_minimo', 4,
+    'costo', 1250.50, 'valor', 1250.50, 'bajo', true), 'T41: datos del producto: ' || (v_r.items -> 'productos' -> 1)::text;
+  assert (v_r.items -> 'productos' -> 0 ->> 'bajo')::boolean = false, 'T41: C2 no está bajo';
+
+  assert jsonb_array_length(v_r.items -> 'movimientos') = 2, 'T41: solo los movimientos de los últimos 7 días';
+  assert v_r.items -> 'movimientos' -> 0 ->> 'codigo' = 'C1', 'T41: el movimiento más reciente va primero';
+  assert v_r.items -> 'movimientos' -> 0 ->> 'tipo' = 'salida', 'T41: tipo del movimiento';
+  assert v_r.items -> 'movimientos' -> 0 ->> 'cantidad' = '2', 'T41: cantidad del movimiento';
+  assert v_r.items -> 'movimientos' -> 0 ->> 'stock_nuevo' = '1', 'T41: stock nuevo del movimiento';
+  assert v_r.items ->> 'entradas' = '8', 'T41: unidades que entraron en la semana';
+  assert v_r.items ->> 'salidas' = '2', 'T41: unidades que salieron en la semana';
+  assert (v_r.items ->> 'hasta')::timestamptz - (v_r.items ->> 'desde')::timestamptz = interval '7 days', 'T41: el periodo es de 7 días';
+
+  assert v_r.body like '%Productos: 2%', 'T41: el texto lleva el total de productos';
+  assert v_r.body like '%Con stock bajo: 1%', 'T41: el texto lleva los productos bajos';
+  assert v_r.body like '%Valor del inventario: $2,250.40%', 'T41: el texto lleva el valor';
+  assert v_r.body like '%Movimientos de la semana: 2 (entradas: 8 u., salidas: 2 u.)%', 'T41: el texto resume los movimientos: ' || v_r.body;
+  assert v_r.body like '%• C1 — Tóner: actual 1, mínimo 4%', 'T41: el texto lista los productos bajos';
+
+  -- Crear un reporte no cuenta como aviso de stock bajo: la alerta se sigue creando aparte.
+  assert not (select low_active from products where codigo = 'C1'), 'T41: el reporte no debe marcar productos como avisados';
+  assert crear_alerta_stock_bajo() is not null, 'T41: la alerta de stock bajo sigue funcionando';
+end $$;
+
+-- T42: con el inventario vacío el reporte se crea igual, sin fallar.
+do $$
+declare
+  v_r alerts;
+  v_id bigint;
+begin
+  perform pg_temp.limpiar();
+  v_id := crear_reporte_semanal();
+  select * into v_r from alerts where id = v_id;
+  assert v_r.items -> 'productos' = '[]'::jsonb, 'T42: lista de productos vacía';
+  assert v_r.items -> 'movimientos' = '[]'::jsonb, 'T42: lista de movimientos vacía';
+  assert v_r.items ->> 'entradas' = '0' and v_r.items ->> 'salidas' = '0', 'T42: sin unidades movidas';
+  assert v_r.body like '%Movimientos de la semana: 0%', 'T42: texto sin movimientos';
+  assert v_r.body like '%Ningún producto está por debajo de su mínimo.%', 'T42: texto sin productos bajos';
+end $$;
+
+-- T43: el reporte se entrega con el mismo mecanismo que las alertas.
+do $$
+declare
+  v_id bigint;
+begin
+  perform pg_temp.limpiar();
+  v_id := crear_reporte_semanal();
+  assert (select count(*) from reclamar_alerta(v_id) where tipo = 'reporte_semanal') = 1, 'T43: el reporte se puede reclamar para enviarlo';
+  assert (select status from alerts where id = v_id) = 'enviando', 'T43: queda enviando';
+end $$;
+
+-- T44: solo el bot puede crear reportes.
+set local role anon;
+select pg_temp.debe_fallar('T44 anon', 'select crear_reporte_semanal()', '42501');
+reset role;
+set local role authenticated;
+select pg_temp.debe_fallar('T44 con sesión', 'select crear_reporte_semanal()', '42501');
+do $$
+begin
+  assert (select count(*) from alerts where tipo = 'reporte_semanal') >= 0, 'T44: con sesión se puede leer el tipo';
+end $$;
+reset role;
+set local role service_role;
+do $$
+begin
+  assert crear_reporte_semanal() is not null, 'T44: el bot debe poder crear el reporte';
+end $$;
+reset role;
+
+-- ---------------------------------------------------------------------------
 select 'TODAS LAS PRUEBAS PASARON' as resultado;
 rollback;

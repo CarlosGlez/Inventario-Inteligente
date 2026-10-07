@@ -1,11 +1,13 @@
 // Edge Function "revisar-inventario": el bot del inventario.
 //
 // Quién la llama:
-//   · pg_cron, cada minuto (aunque nadie tenga la página abierta)
-//   · la página, con los botones "Revisar inventario ahora" y "Reintentar envío"
+//   · pg_cron, cada minuto, para revisar el stock (aunque nadie tenga la página abierta)
+//   · pg_cron, una vez por semana, para mandar el reporte semanal
+//   · la página, con los botones "Revisar inventario ahora", "Enviar reporte ahora" y "Reintentar envío"
 //
 // Este archivo solo conecta las piezas con Supabase. Las decisiones están en
-// entrega.ts (qué hacer) y el envío en smtp.ts (cómo mandar el correo).
+// entrega.ts (qué hacer), el formato en plantillas.ts (cómo se ve el correo)
+// y el envío en smtp.ts (cómo se manda).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { type Deps, manejar, type Puerta } from "./entrega.ts";
 import { enviarCorreo } from "./smtp.ts";
@@ -43,6 +45,12 @@ const deps: Deps & Puerta = {
     const { data, error } = await base.rpc("crear_alerta_stock_bajo");
     revisarError(error);
     return data ?? null;
+  },
+
+  async crearReporte() {
+    const { data, error } = await base.rpc("crear_reporte_semanal");
+    revisarError(error);
+    return data;
   },
 
   async pendientes() {
