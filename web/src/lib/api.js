@@ -6,10 +6,22 @@ import { supabase } from "./supabase.js";
 import { enteroNoNegativo, limpiarProducto } from "./validar.js";
 
 const LIMITE_LISTADOS = 200;
+const TAMANO_PAGINA = 1000;
 
 function revisar({ data, error }) {
   if (error) throw new Error(mensajeError(error));
   return data;
+}
+
+async function cargarVentasAnuales() {
+  const filas = [];
+  for (let inicio = 0; inicio < 20000; inicio += TAMANO_PAGINA) {
+    const pagina = revisar(await supabase.from("ventas_diarias_365d").select("*")
+      .order("product_code").order("fecha").range(inicio, inicio + TAMANO_PAGINA - 1));
+    filas.push(...pagina);
+    if (pagina.length < TAMANO_PAGINA) return filas;
+  }
+  return filas;
 }
 
 // Orden alfabético sin distinguir mayúsculas ni acentos.
@@ -20,6 +32,15 @@ const porNombre = (a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity
 export async function obtenerSesion() {
   const { data } = await supabase.auth.getSession();
   return data?.session ?? null;
+}
+
+export async function obtenerPerfil(userId = null) {
+  if (!userId) {
+    const { data: usuario } = await supabase.auth.getUser();
+    userId = usuario?.user?.id;
+  }
+  if (!userId) return null;
+  return revisar(await supabase.from("profiles").select("user_id, role, active").eq("user_id", userId).single());
 }
 
 /** Avisa cada vez que la sesión cambia. Devuelve una función para dejar de escuchar. */
@@ -44,14 +65,16 @@ export async function cargarResumen() {
 
 /** Lo que necesita la pantalla principal, en una sola ida a la base. */
 export async function cargarInventario() {
-  const [productos, consumo, resumen] = await Promise.all([
+  const [productos, consumo, ventas, resumen] = await Promise.all([
     supabase.from("products").select("*"),
     supabase.from("consumo_30d").select("*"),
+    cargarVentasAnuales(),
     supabase.from("resumen_inventario").select("*").single(),
   ]);
   return {
     productos: revisar(productos).sort(porNombre),
     consumo: revisar(consumo),
+    ventas,
     resumen: revisar(resumen),
   };
 }
@@ -72,17 +95,17 @@ export async function eliminarProducto(id) {
 }
 
 /** Registra una entrada o salida. La base rechaza lo que dejaría el stock negativo. */
-export async function registrarMovimiento(id, tipo, cantidad) {
+export async function registrarMovimiento(id, tipo, cantidad, motivo = "venta") {
   const unidades = enteroNoNegativo(cantidad, "cantidad");
   if (unidades === 0) throw new Error("cantidad: debe ser mayor que cero.");
   return revisar(await supabase.rpc("registrar_movimiento", {
-    p_producto_id: id, p_tipo: tipo, p_cantidad: unidades,
+    p_producto_id: id, p_tipo: tipo, p_cantidad: unidades, p_motivo: tipo === "entrada" ? "otro" : motivo,
   }));
 }
 
 /** Guarda todos los productos del Excel en una sola transacción (todo o nada). */
 export async function importarProductos(items) {
-  return revisar(await supabase.rpc("importar_productos", { p_items: items }));
+  return revisar(await supabase.rpc("importar_productos_con_permiso", { p_items: items }));
 }
 
 export async function listarMovimientos() {
@@ -91,6 +114,55 @@ export async function listarMovimientos() {
 
 export async function listarAlertas() {
   return revisar(await supabase.from("alerts").select("*").order("id", { ascending: false }).limit(LIMITE_LISTADOS));
+}
+
+export async function listarProveedores() {
+  return revisar(await supabase.from("proveedores").select("*").order("nombre"));
+}
+
+export async function guardarProveedor(proveedor, id = null) {
+  if (id === null) return revisar(await supabase.from("proveedores").insert(proveedor).select().single());
+  return revisar(await supabase.from("proveedores").update(proveedor).eq("id", id).select().single());
+}
+
+export async function vincularProductoProveedor(proveedorId, productId, costoUnitario, minimoUnidades) {
+  return revisar(await supabase.from("proveedor_productos").upsert({
+    proveedor_id: proveedorId, product_id: productId, costo_unitario: costoUnitario, minimo_unidades: minimoUnidades,
+  }));
+}
+
+export async function listarOrdenes() {
+  return revisar(await supabase.from("ordenes_compra").select("*, proveedores(nombre), orden_lineas(*, products(codigo,nombre))").order("created_at", { ascending: false }));
+}
+
+export async function crearBorradores(alertaId) {
+  return revisar(await supabase.rpc("crear_ordenes_desde_alerta", { p_alerta_id: alertaId }));
+}
+
+export async function recibirLineaOrden(lineaId, cantidad) {
+  return revisar(await supabase.rpc("recibir_linea_orden", { p_linea_id: lineaId, p_cantidad: Number(cantidad) }));
+}
+
+export async function enviarOrdenProveedor(ordenId) {
+  const { data, error } = await supabase.functions.invoke("revisar-inventario/ordenes/enviar", { body: { orden_id: ordenId } });
+  if (error) throw new Error(mensajeError(error));
+  return data;
+}
+
+export async function listarPerfiles() {
+  const { data, error } = await supabase.functions.invoke("revisar-inventario/usuarios", { method: "GET" });
+  if (error) throw new Error(mensajeError(error));
+  return data;
+}
+
+export async function actualizarPerfil(userId, role, active) {
+  return revisar(await supabase.functions.invoke("revisar-inventario/usuarios", { body: { user_id: userId, role, active } }));
+}
+
+export async function crearUsuario(email, password, role) {
+  const { data, error } = await supabase.functions.invoke("revisar-inventario/usuarios", { body: { email, password, role } });
+  if (error) throw new Error(mensajeError(error));
+  return data;
 }
 
 // ---- El bot -----------------------------------------------------------------

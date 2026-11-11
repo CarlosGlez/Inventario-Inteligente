@@ -11,11 +11,15 @@ import {
 import { avisoRevision } from "../lib/avisos.js";
 import { crearExcel, descargar, leerExcel, revisarArchivo } from "../lib/excel.js";
 import { conPronostico, prioridadReabasto } from "../lib/pronostico.js";
+import { pronosticoProducto } from "../lib/pronostico-avanzado.js";
+import { usePerfil } from "../lib/perfil.jsx";
 
 const dos = (n) => String(n).padStart(2, "0");
 
 // Pantalla principal: resumen, reabasto, alta, importación y tabla.
 export default function Inventario() {
+  const perfil = usePerfil();
+  const puedeEditar = perfil.role === "admin" || perfil.role === "almacen";
   const navegar = useNavigate();
   const [datos, setDatos] = useState(null);       // { productos, consumo, resumen }
   const [errorCarga, setErrorCarga] = useState(null);
@@ -34,7 +38,21 @@ export default function Inventario() {
   useEffect(() => { cargar(); }, [cargar]);
 
   // El pronóstico se calcula aquí, con los datos que entregó la base.
-  const productos = useMemo(() => (datos ? conPronostico(datos.productos, datos.consumo) : []), [datos]);
+  const productos = useMemo(() => {
+    if (!datos) return [];
+    const baselines = conPronostico(datos.productos, datos.consumo);
+    return baselines.map((p) => {
+      const avanzado = pronosticoProducto(p, (datos.ventas ?? []).filter((v) => v.product_code === p.codigo), new Date(), 14, p.consumo_diario);
+      const diario = avanzado.demanda_diaria_esperada;
+      const dias = diario > 0 ? Math.floor(p.stock_actual / diario) : null;
+      const sugerido = Math.max(p.stock_minimo - p.stock_actual, Math.ceil(diario * 14) - p.stock_actual, 0);
+      return {
+        ...p, ...avanzado, consumo_diario: diario > 0 ? diario : null, dias_restantes: dias,
+        sugerido, costo_sugerido: Math.round(sugerido * Number(p.costo) * 100) / 100,
+        urgente: p.bajo || (dias !== null && dias <= 7),
+      };
+    });
+  }, [datos]);
   const prioridad = useMemo(() => prioridadReabasto(productos), [productos]);
   const categorias = useMemo(
     () => [...new Set(productos.map((p) => p.categoria))].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
@@ -60,7 +78,7 @@ export default function Inventario() {
 
   const alGuardar = (datosProducto) => ejecutar(() => guardarProducto(datosProducto, null), "Producto registrado.");
   const alEditar = (id, datosProducto) => ejecutar(() => guardarProducto(datosProducto, id), "Producto actualizado.");
-  const alMover = (id, tipo, cantidad) => ejecutar(() => registrarMovimiento(id, tipo, cantidad), "Movimiento registrado.");
+  const alMover = (id, tipo, cantidad, motivo) => ejecutar(() => registrarMovimiento(id, tipo, cantidad, motivo), "Movimiento registrado.");
 
   function alEliminar(id) {
     if (!window.confirm("¿Eliminar este producto?")) return Promise.resolve(false);
@@ -112,22 +130,22 @@ export default function Inventario() {
       <div className="page-title">
         <div>
           <h2>Inventario</h2>
-          <p>Los productos bajo el mínimo aparecen resaltados. El pronóstico usa las salidas de los últimos 30 días.</p>
+          <p>Las salidas marcadas como venta alimentan la selección automática del pronóstico. Las salidas históricas sin clasificar permanecen en el baseline heredado.</p>
         </div>
-        <div className="title-actions">
+      <div className="title-actions">
           <button type="button" className="button" disabled={ocupado} onClick={exportar}>Exportar a Excel</button>
-          <button type="button" className="primary" disabled={ocupado} onClick={revisar}>Revisar inventario ahora</button>
+          {perfil.role !== "consulta" && <button type="button" className="primary" disabled={ocupado} onClick={revisar}>Revisar inventario ahora</button>}
         </div>
       </div>
 
       <Prioridad prioridad={prioridad} />
 
-      <div className="two-columns">
+      {puedeEditar && <div className="two-columns">
         <FormularioProducto categorias={categorias} ocupado={ocupado} onGuardar={alGuardar} />
         <ImportarExcel ocupado={ocupado} onImportar={alImportar} />
-      </div>
+      </div>}
 
-      <TablaProductos productos={productos} categorias={categorias} ocupado={ocupado}
+      <TablaProductos productos={productos} categorias={categorias} ocupado={ocupado} puedeEditar={puedeEditar} puedeEliminar={perfil.role === "admin"}
         onMovimiento={alMover} onEditar={alEditar} onEliminar={alEliminar} />
     </Pagina>
   );

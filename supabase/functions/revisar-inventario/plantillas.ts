@@ -277,7 +277,13 @@ const esObjeto = (valor: unknown): valor is Fila => typeof valor === "object" &&
  * tienen la forma esperada devuelve undefined: el correo sale solo como texto,
  * que es mejor que no enviarlo.
  */
-export function htmlCorreo(alerta: { tipo?: string; items?: unknown }): string | undefined {
+function htmlOrden(items: Fila[], link?: string): string {
+  const filas = items.map((i) => `<tr><td>${escapar(i.codigo)}</td><td>${escapar(i.nombre)}</td><td>${entero(i.cantidad)}</td><td>${dinero(i.costo_unitario)}</td><td>${dinero(i.subtotal)}</td></tr>`).join("");
+  const enlace = link && /^https?:\/\//i.test(link) ? `<p><a href="${escapar(link)}">Abrir órdenes de compra</a></p>` : "";
+  return `<div style="font-family:Arial,sans-serif;color:#0f1b33"><h1 style="background:#0f1b33;color:white;padding:18px">Orden de compra</h1><table style="border-collapse:collapse;width:100%"><thead><tr><th>Código</th><th>Producto</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>${filas}</tbody></table>${enlace}<p>Responda para confirmar la orden y la fecha de entrega.</p></div>`;
+}
+
+export function htmlCorreo(alerta: { tipo?: string; items?: unknown; link?: string }): string | undefined {
   try {
     const tipo = alerta.tipo ?? "stock_bajo";
     if (tipo === "stock_bajo") {
@@ -290,6 +296,10 @@ export function htmlCorreo(alerta: { tipo?: string; items?: unknown }): string |
       if (!esObjeto(r) || !Array.isArray(r.productos) || !Array.isArray(r.movimientos)) return undefined;
       if (!r.productos.every(esObjeto) || !r.movimientos.every(esObjeto)) return undefined;
       return htmlReporte({ items: r });
+    }
+    if (tipo === "orden_compra") {
+      if (!Array.isArray(alerta.items) || !alerta.items.every(esObjeto) || alerta.items.length === 0) return undefined;
+      return htmlOrden(alerta.items, alerta.link);
     }
     return undefined;
   } catch {

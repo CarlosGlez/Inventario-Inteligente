@@ -178,6 +178,8 @@ describe("htmlCorreo", () => {
     expect(htmlCorreo({ tipo: "reporte_semanal", items: REPORTE })).toContain("Reporte semanal de inventario");
     expect(htmlCorreo({ tipo: "stock_bajo", items: ITEMS })).toContain("Alerta de stock bajo");
     expect(htmlCorreo({ items: ITEMS })).toContain("Alerta de stock bajo");   // sin tipo: alerta
+    expect(htmlCorreo({ tipo: "orden_compra", items: [{ codigo: "C1", nombre: "Producto", cantidad: 2, costo_unitario: 5, subtotal: 10 }], link: "https://demo.example/ordenes" })).toContain("https://demo.example/ordenes");
+    expect(htmlCorreo({ tipo: "orden_compra", items: [{ codigo: "<x>", nombre: "<img>", cantidad: 1, costo_unitario: 1, subtotal: 1 }] })).toContain("&lt;img&gt;");
   });
 
   it("si los datos no tienen la forma esperada devuelve undefined en vez de fallar", () => {
@@ -186,6 +188,7 @@ describe("htmlCorreo", () => {
     expect(htmlCorreo({ tipo: "stock_bajo", items: [] })).toBeUndefined();
     expect(htmlCorreo({ tipo: "reporte_semanal", items: ITEMS })).toBeUndefined();
     expect(htmlCorreo({ tipo: "reporte_semanal", items: {} })).toBeUndefined();
+    expect(htmlCorreo({ tipo: "orden_compra", items: [] })).toBeUndefined();
     expect(htmlCorreo({ tipo: "otro", items: ITEMS })).toBeUndefined();
   });
 });

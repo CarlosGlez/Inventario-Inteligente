@@ -11,6 +11,9 @@ begin;
 
 -- Las pruebas necesitan tablas vacías para que las cuentas sean exactas.
 delete from movements;
+delete from ordenes_compra;
+delete from proveedor_productos;
+delete from proveedores;
 delete from alerts;
 delete from settings;
 delete from products;
@@ -93,7 +96,8 @@ select pg_temp.debe_fallar('T05 status', $q$insert into alerts (items, subject, 
 -- ---------------------------------------------------------------------------
 
 create function pg_temp.limpiar() returns void language sql as $$
-  delete from movements; delete from alerts; delete from settings; delete from products;
+  delete from movements; delete from ordenes_compra; delete from proveedor_productos;
+  delete from proveedores; delete from alerts; delete from settings; delete from products;
 $$;
 
 create function pg_temp.producto(p_codigo text, p_nombre text, p_stock integer, p_minimo integer, p_costo numeric)
@@ -324,7 +328,7 @@ begin
   assert (select count(*) from reclamar_alerta(v_id)) = 0, 'T19: mientras se envía nadie más puede reclamarla';
   assert (select attempts from alerts where id = v_id) = 1, 'T19: un reclamo rechazado no suma intentos';
 
-  update alerts set status = 'error', error = 'falló' where id = v_id;
+  update alerts set status = 'error', error = 'falló', last_attempt_at = now() - interval '2 minutes' where id = v_id;
   assert (select count(*) from reclamar_alerta(v_id)) = 1, 'T19: una alerta con error se puede reintentar';
   assert (select attempts = 2 and error is null from alerts where id = v_id), 'T19: 2 intentos y error limpio';
 
@@ -416,7 +420,7 @@ begin
   update products set nombre = 'Editado' where id = v_id;
   assert (select nombre from products where id = v_id) = 'Editado', 'T32: debe poder editar productos';
   assert registrar_movimiento(v_id, 'entrada', 2) = 5, 'T32: debe poder registrar movimientos';
-  assert importar_productos('[{"codigo": "S3", "nombre": "Importado", "categoria": "Clase", "stock_actual": 1, "stock_minimo": 1, "costo": 1}]') = 1,
+  assert importar_productos_con_permiso('[{"codigo": "S3", "nombre": "Importado", "categoria": "Clase", "stock_actual": 1, "stock_minimo": 1, "costo": 1}]') = 1,
          'T32: debe poder importar';
   assert (select count(*) from products) = 3, 'T32: debe ver los 3 productos';
   assert (select count(*) from movements) = 1, 'T32: debe poder leer movimientos';
@@ -569,6 +573,55 @@ begin
   assert crear_reporte_semanal() is not null, 'T44: el bot debe poder crear el reporte';
 end $$;
 reset role;
+
+-- T45: solo las salidas clasificadas como venta alimentan la vista diaria.
+do $$
+declare v_id bigint;
+begin
+  perform pg_temp.limpiar();
+  insert into products(codigo,nombre,categoria,stock_actual,stock_minimo,costo) values('V45','Venta','Clase',20,3,2) returning id into v_id;
+  perform registrar_movimiento(v_id,'salida',2,'venta');
+  perform registrar_movimiento(v_id,'salida',1,'merma');
+  assert (select count(*) from ventas_diarias_365d where product_code='V45') = 1, 'T45: la venta entra a la serie';
+  assert (select sum(cantidad) from ventas_diarias_365d where product_code='V45') = 2, 'T45: la merma queda excluida';
+  assert (select motivo from movements where product_code='V45' and cantidad=2) = 'venta', 'T45: guarda motivo';
+end $$;
+
+-- T46: cantidad incluye lead time y monto mínimo; recepción actualiza stock.
+do $$
+declare v_id bigint; v_proveedor bigint; v_alerta bigint; v_orden bigint; v_linea bigint;
+begin
+  perform pg_temp.limpiar();
+  insert into products(codigo,nombre,categoria,stock_actual,stock_minimo,costo) values('OC46','Orden','Clase',2,4,3) returning id into v_id;
+  insert into proveedores(nombre,correo,lead_time_dias,minimo_compra) values('Proveedor prueba','test@example.invalid',5,50) returning id into v_proveedor;
+  insert into proveedor_productos(proveedor_id,product_id,costo_unitario,minimo_unidades) values(v_proveedor,v_id,3,3);
+  insert into alerts(items,subject,body,status) values(jsonb_build_array(jsonb_build_object('id',v_id,'codigo','OC46','nombre','Orden','stock_actual',2,'stock_minimo',4,'faltante',2,'demanda_diaria_esperada',2,'cantidad_sugerida',5,'costo',3)),'Prueba','Prueba','pendiente') returning id into v_alerta;
+  assert crear_ordenes_desde_alerta(v_alerta)=1, 'T46: crea un borrador';
+  select id into v_orden from ordenes_compra where alerta_id=v_alerta;
+  select id into v_linea from orden_lineas where orden_id=v_orden;
+  assert (select cantidad from orden_lineas where id=v_linea)=17, 'T46: cantidad incluye lead time y compra mínima';
+  perform recibir_linea_orden(v_linea,5);
+  assert (select stock_actual from products where id=v_id)=7, 'T46: recepción parcial actualiza stock';
+  assert (select estado from ordenes_compra where id=v_orden)='recibida parcial', 'T46: marca recepción parcial';
+  perform recibir_linea_orden(v_linea,12);
+  assert (select stock_actual from products where id=v_id)=19, 'T46: recepción restante actualiza stock';
+  assert (select estado from ordenes_compra where id=v_orden)='recibida', 'T46: cierra al completar';
+end $$;
+
+-- T47: una orden conserva un único aviso de correo incluso si se prepara dos veces.
+do $$
+declare v_id bigint; v_proveedor bigint; v_orden bigint; a jsonb; b jsonb;
+begin
+  perform pg_temp.limpiar();
+  insert into products(codigo,nombre,categoria,stock_actual,stock_minimo,costo) values('OC47','Orden correo','Clase',4,1,8) returning id into v_id;
+  insert into proveedores(nombre,correo) values('Proveedor correo','correo@example.invalid') returning id into v_proveedor;
+  insert into ordenes_compra(folio,proveedor_id,estado) values('OC-PRUEBA',v_proveedor,'borrador') returning id into v_orden;
+  insert into orden_lineas(orden_id,product_id,cantidad,costo_unitario) values(v_orden,v_id,2,8);
+  a := preparar_correo_orden(v_orden); b := preparar_correo_orden(v_orden);
+  assert a->>'alert_id'=b->>'alert_id', 'T47: reutiliza la alerta';
+  assert (select count(*) from alerts where orden_id=v_orden)=1, 'T47: no duplica el correo';
+  assert (select recipient from alerts where orden_id=v_orden)='correo@example.invalid', 'T47: destinatario del proveedor';
+end $$;
 
 -- ---------------------------------------------------------------------------
 select 'TODAS LAS PRUEBAS PASARON' as resultado;

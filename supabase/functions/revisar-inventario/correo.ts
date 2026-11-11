@@ -21,6 +21,9 @@ const PUERTOS_BLOQUEADOS = [25, 587];
 export function configCorreo(env: Entorno): ConfigCorreo {
   const valor = (nombre: string) => (env[nombre] ?? "").trim();
 
+  // Una demo nunca contacta destinatarios externos aunque haya SMTP cargado.
+  if (["1", "true", "yes"].includes(valor("DEMO_MODE").toLowerCase())) return { modo: "demo" };
+
   if (OBLIGATORIOS.every((nombre) => valor(nombre) === "")) {
     return { modo: "demo" };
   }
@@ -51,6 +54,7 @@ export function configCorreo(env: Entorno): ConfigCorreo {
 }
 
 export type Correo = { subject: string; body: string; html?: string };
+export type ResultadoEnvio = { messageId: string; accepted: string[] };
 
 /**
  * Arma el mensaje que se le entrega al servidor de correo.

@@ -1,25 +1,34 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { alCambiarSesion, obtenerSesion } from "./lib/api.js";
+import { alCambiarSesion, obtenerPerfil, obtenerSesion } from "./lib/api.js";
+import { PerfilProveedor } from "./lib/perfil.jsx";
 import { configurado } from "./lib/supabase.js";
 import Alertas from "./paginas/Alertas.jsx";
 import Inventario from "./paginas/Inventario.jsx";
 import Login from "./paginas/Login.jsx";
 import Movimientos from "./paginas/Movimientos.jsx";
+import Proveedores from "./paginas/Proveedores.jsx";
+import Ordenes from "./paginas/Ordenes.jsx";
+import Usuarios from "./paginas/Usuarios.jsx";
 
 // Punto de partida: decide qué se muestra según haya sesión o no.
 export default function App() {
   // undefined = todavía no sabemos · null = sin sesión · objeto = con sesión
   const [sesion, setSesion] = useState(undefined);
+  const [perfil, setPerfil] = useState(undefined);
 
   useEffect(() => {
     if (!configurado) return undefined;
     let vigente = true;
     obtenerSesion()
-      .then((actual) => { if (vigente) setSesion(actual); })
-      .catch(() => { if (vigente) setSesion(null); });
+      .then(async (actual) => { if (vigente) { setSesion(actual); setPerfil(actual ? await obtenerPerfil(actual.user.id) : null); } })
+      .catch(() => { if (vigente) { setSesion(null); setPerfil(null); } });
     // Si la sesión vence o se cierra en otra pestaña, se vuelve al login.
-    const dejarDeEscuchar = alCambiarSesion((nueva) => setSesion(nueva));
+    const dejarDeEscuchar = alCambiarSesion((nueva) => {
+      setSesion(nueva);
+      setPerfil(nueva ? undefined : null);
+      if (nueva) obtenerPerfil(nueva.user.id).then(setPerfil).catch(() => setPerfil(null));
+    });
     return () => { vigente = false; dejarDeEscuchar(); };
   }, []);
 
@@ -36,15 +45,21 @@ export default function App() {
       </div>
     );
   }
-  if (sesion === undefined) return <p className="cargando">Cargando…</p>;
+  if (sesion === undefined || (sesion && perfil === undefined)) return <p className="cargando">Cargando…</p>;
   if (sesion === null) return <Login />;
+  if (!perfil?.active) return <div className="login-page"><section className="card"><h1>Cuenta desactivada</h1><p>Solicita al administrador que reactive tu acceso.</p></section></div>;
 
   return (
-    <Routes>
-      <Route path="/" element={<Inventario />} />
-      <Route path="/movimientos" element={<Movimientos />} />
-      <Route path="/alertas" element={<Alertas />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <PerfilProveedor value={perfil}>
+      <Routes>
+        <Route path="/" element={<Inventario />} />
+        <Route path="/movimientos" element={<Movimientos />} />
+        <Route path="/alertas" element={<Alertas />} />
+        <Route path="/proveedores" element={perfil.role === "admin" || perfil.role === "compras" ? <Proveedores /> : <Navigate to="/" replace />} />
+        <Route path="/ordenes" element={perfil.role !== "consulta" ? <Ordenes /> : <Navigate to="/" replace />} />
+        <Route path="/usuarios" element={perfil.role === "admin" ? <Usuarios /> : <Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </PerfilProveedor>
   );
 }

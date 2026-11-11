@@ -46,7 +46,11 @@ export function avisoReporte(status) {
 
 /** ¿Se muestra el botón "Reintentar envío" en esta alerta? */
 export function puedeReintentar(alerta, ahora = new Date()) {
-  if (alerta.status === "error") return true;
+  if (alerta.status === "error") {
+    const desde = new Date(alerta.last_attempt_at ?? alerta.created_at).getTime();
+    const espera = Math.min(60, 2 ** Math.min(6, Number(alerta.attempts ?? 1))) * 60000;
+    return ahora.getTime() - desde >= espera;
+  }
   if (alerta.status !== "pendiente" && alerta.status !== "enviando") return false;
   const desde = new Date(alerta.last_attempt_at ?? alerta.created_at).getTime();
   return ahora.getTime() - desde > MINUTOS_ATORADA * 60000;

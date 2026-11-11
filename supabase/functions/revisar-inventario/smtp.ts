@@ -1,6 +1,6 @@
 // Envío real del correo por SMTP. Es el único archivo que toca la red de correo.
 import nodemailer from "npm:nodemailer@10";
-import { type ConfigCorreo, type Correo, mensajeCorreo } from "./correo.ts";
+import { type ConfigCorreo, type Correo, type ResultadoEnvio, mensajeCorreo } from "./correo.ts";
 
 /**
  * Manda un correo (texto y, si viene, versión con formato). Usa SSL directo (puerto 465).
@@ -11,9 +11,9 @@ export async function enviarCorreo(
   config: ConfigCorreo,
   correo: Correo,
   { tiempoLimiteMs = 15000 }: { tiempoLimiteMs?: number } = {},
-): Promise<void> {
+): Promise<ResultadoEnvio> {
   const mensaje = mensajeCorreo(config, correo);
-  if (config.modo !== "smtp") return; // mensajeCorreo ya lanzó el error; esto solo ayuda a TypeScript
+  if (config.modo !== "smtp") throw new Error("No hay configuración SMTP para enviar el correo.");
   const transporte = nodemailer.createTransport({
     host: config.host,
     port: config.port,
@@ -24,7 +24,8 @@ export async function enviarCorreo(
     socketTimeout: tiempoLimiteMs,
   });
   try {
-    await transporte.sendMail(mensaje);
+    const resultado = await transporte.sendMail(mensaje);
+    return { messageId: String(resultado.messageId ?? ""), accepted: (resultado.accepted ?? []).map(String) };
   } finally {
     transporte.close();
   }

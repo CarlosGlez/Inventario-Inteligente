@@ -1,12 +1,12 @@
 // Lógica del bot. No sabe nada de Supabase ni de SMTP: recibe "dependencias"
 // (funciones para hablar con la base y para enviar) y decide qué hacer.
 // Así se puede probar completa con dependencias falsas.
-import { configCorreo, type ConfigCorreo, type Correo, type Entorno } from "./correo.ts";
+import { configCorreo, type ConfigCorreo, type Correo, type Entorno, type ResultadoEnvio } from "./correo.ts";
 import { htmlCorreo } from "./plantillas.ts";
 
 // Una fila del historial lista para enviarse. "tipo" e "items" sirven para
 // armar la versión con formato; "body" es la versión de texto.
-export type AlertaReclamada = { id: number; subject: string; body: string; tipo?: string; items?: unknown };
+export type AlertaReclamada = { id: number; subject: string; body: string; tipo?: string; items?: unknown; recipient?: string | null; link?: string };
 
 export type Deps = {
   /** Secrets de la función (SMTP_HOST, ALERT_TO, ...). */
@@ -16,9 +16,9 @@ export type Deps = {
   /** Estado actual de la alerta, o null si no existe. */
   estadoActual(id: number): Promise<string | null>;
   /** Guarda el resultado del envío. */
-  cerrar(id: number, status: string, error: string | null): Promise<void>;
+  cerrar(id: number, status: string, error: string | null, evidencia?: { messageId?: string; recipient?: string; deliveryStatus: string }): Promise<void>;
   /** Manda el correo. */
-  enviar(config: ConfigCorreo, correo: Correo): Promise<void>;
+  enviar(config: ConfigCorreo, correo: Correo): Promise<ResultadoEnvio>;
   /** Pide a la base la alerta de un episodio nuevo. Devuelve su id o null. */
   crearAlerta(): Promise<number | null>;
   /** Ids de las alertas que nunca se intentaron enviar. */
@@ -32,6 +32,7 @@ export type Puerta = {
   cronSecret?: string;
   /** Dice si un token de sesión pertenece a un usuario real. */
   validarToken(token: string): Promise<boolean>;
+  puedeEjecutar?(token: string, accion: "revisar" | "reporte" | "reintentar"): Promise<boolean>;
 };
 
 export type ResultadoRevision = {
@@ -51,21 +52,28 @@ export async function entregarAlerta(deps: Deps, id: number): Promise<string> {
 
   let status: string;
   let error: string | null = null;
+  let evidencia: { messageId?: string; recipient?: string; deliveryStatus: string } = { deliveryStatus: "fallido" };
   try {
     const config = configCorreo(deps.env);
     if (config.modo === "demo") {
       status = "simulado";
+      evidencia = { recipient: "modo demo; sin destinatario real", deliveryStatus: "simulado" };
     } else {
+      const destinatario = alerta.tipo === "orden_compra" && alerta.recipient ? alerta.recipient : config.to;
+      evidencia = { recipient: destinatario, deliveryStatus: "fallido" };
+      if (alerta.tipo === "orden_compra" && !deps.env.APP_URL) throw new Error("Configura APP_URL para incluir el enlace de la orden al proveedor.");
+      const link = deps.env.APP_URL ? `${deps.env.APP_URL.replace(/\/$/, "")}/ordenes` : undefined;
       // html queda sin valor si los datos guardados no sirven para el formato;
       // en ese caso el correo sale solo como texto.
-      await deps.enviar(config, { subject: alerta.subject, body: alerta.body, html: htmlCorreo(alerta) });
+      const resultado = await deps.enviar({ ...config, to: destinatario }, { subject: alerta.subject, body: alerta.body, html: htmlCorreo({ ...alerta, link }) }) ?? { messageId: "", accepted: [] };
       status = "enviado";
+      evidencia = { messageId: resultado.messageId, recipient: destinatario, deliveryStatus: "enviado" };
     }
   } catch (motivo) {
     status = "error";
     error = motivo instanceof Error ? motivo.message : String(motivo);
   }
-  await deps.cerrar(id, status, error);
+  await deps.cerrar(id, status, error, evidencia);
   return status;
 }
 
@@ -160,6 +168,11 @@ export async function manejar(req: Request, deps: Deps & Puerta): Promise<Respon
     if (texto.trim() !== "") cuerpo = JSON.parse(texto) ?? {};
   } catch {
     return json({ error: "El cuerpo de la petición no es JSON válido." }, 400);
+  }
+
+  if (token && deps.puedeEjecutar) {
+    const accion = cuerpo.alert_id !== undefined && cuerpo.alert_id !== null ? "reintentar" : (cuerpo.accion === "reporte" ? "reporte" : "revisar");
+    if (!await deps.puedeEjecutar(token, accion)) return json({ error: "Tu rol no tiene permiso para esta acción." }, 403);
   }
 
   try {

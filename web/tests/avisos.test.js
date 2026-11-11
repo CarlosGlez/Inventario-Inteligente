@@ -43,8 +43,9 @@ describe("puedeReintentar", () => {
   const ahora = new Date("2026-10-05T12:00:00Z");
   const hace = (minutos) => new Date(ahora.getTime() - minutos * 60000).toISOString();
 
-  it("siempre se puede reintentar una alerta con error", () => {
-    expect(puedeReintentar({ status: "error", last_attempt_at: hace(0) }, ahora)).toBe(true);
+  it("espera con backoff exponencial antes de reintentar errores", () => {
+    expect(puedeReintentar({ status: "error", attempts: 1, last_attempt_at: hace(1) }, ahora)).toBe(false);
+    expect(puedeReintentar({ status: "error", attempts: 1, last_attempt_at: hace(2) }, ahora)).toBe(true);
   });
   it("una alerta enviada o simulada no se reintenta", () => {
     expect(puedeReintentar({ status: "enviado", last_attempt_at: hace(60) }, ahora)).toBe(false);

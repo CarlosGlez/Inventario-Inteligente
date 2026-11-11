@@ -60,6 +60,9 @@ function depsFalsos(cambios = {}) {
 }
 
 describe("configCorreo", () => {
+  it("fuerza modo demo cuando DEMO_MODE está activo aunque SMTP esté configurado", () => {
+    expect(configCorreo({ ...COMPLETO, DEMO_MODE: "true" })).toEqual({ modo: "demo" });
+  });
   it("sin ningún secret SMTP entra en modo demostración", () => {
     expect(configCorreo({})).toEqual({ modo: "demo" });
     expect(configCorreo({ SMTP_HOST: "  ", SMTP_PORT: "465" })).toEqual({ modo: "demo" });
@@ -131,21 +134,21 @@ describe("entregarAlerta", () => {
   it("sin secrets marca la alerta como simulada y no envía nada", async () => {
     const deps = depsFalsos();
     expect(await entregarAlerta(deps, 7)).toBe("simulado");
-    expect(deps.cerrar).toHaveBeenCalledWith(7, "simulado", null);
+    expect(deps.cerrar).toHaveBeenCalledWith(7, "simulado", null, { recipient: "modo demo; sin destinatario real", deliveryStatus: "simulado" });
     expect(deps.enviar).not.toHaveBeenCalled();
   });
 
   it("con secrets incompletos deja la alerta en error con el motivo", async () => {
     const deps = depsFalsos({ env: { SMTP_HOST: "smtp.example.org" } });
     expect(await entregarAlerta(deps, 7)).toBe("error");
-    expect(deps.cerrar).toHaveBeenCalledWith(7, "error", expect.stringContaining("SMTP_USER"));
+    expect(deps.cerrar).toHaveBeenCalledWith(7, "error", expect.stringContaining("SMTP_USER"), { deliveryStatus: "fallido" });
     expect(deps.enviar).not.toHaveBeenCalled();
   });
 
   it("si el envío falla deja la alerta en error, no en enviando", async () => {
     const deps = depsFalsos({ env: COMPLETO, enviar: vi.fn(async () => { throw new Error("Connection timeout"); }) });
     expect(await entregarAlerta(deps, 7)).toBe("error");
-    expect(deps.cerrar).toHaveBeenCalledWith(7, "error", "Connection timeout");
+    expect(deps.cerrar).toHaveBeenCalledWith(7, "error", "Connection timeout", { deliveryStatus: "fallido", recipient: "almacen@escuela.mx" });
     expect(await deps.estadoActual(7)).toBe("error");
   });
 
@@ -156,7 +159,7 @@ describe("entregarAlerta", () => {
       expect.objectContaining({ modo: "smtp", to: "almacen@escuela.mx" }),
       { subject: ALERTA.subject, body: ALERTA.body },
     );
-    expect(deps.cerrar).toHaveBeenCalledWith(7, "enviado", null);
+    expect(deps.cerrar).toHaveBeenCalledWith(7, "enviado", null, { messageId: "", recipient: "almacen@escuela.mx", deliveryStatus: "enviado" });
   });
 
   it("si otro proceso ya la está enviando, no envía y devuelve el estado actual", async () => {
@@ -202,7 +205,7 @@ describe("enviarReporte", () => {
     expect(correo.subject).toBe(REPORTE.subject);
     expect(correo.html).toContain("Reporte semanal de inventario");
     expect(correo.html).toContain("Inventario completo");
-    expect(deps.cerrar).toHaveBeenCalledWith(12, "enviado", null);
+    expect(deps.cerrar).toHaveBeenCalledWith(12, "enviado", null, { messageId: "", recipient: "almacen@escuela.mx", deliveryStatus: "enviado" });
   });
 
   it("sin secrets el reporte queda simulado", async () => {
@@ -214,7 +217,7 @@ describe("enviarReporte", () => {
   it("si el correo falla el reporte queda en error y se puede reintentar", async () => {
     const deps = depsFalsos({ env: COMPLETO, enviar: vi.fn(async () => { throw new Error("Connection timeout"); }) });
     expect(await enviarReporte(deps)).toEqual({ alert_id: 12, status: "error" });
-    expect(deps.cerrar).toHaveBeenCalledWith(12, "error", "Connection timeout");
+    expect(deps.cerrar).toHaveBeenCalledWith(12, "error", "Connection timeout", { deliveryStatus: "fallido", recipient: "almacen@escuela.mx" });
     deps.enviar.mockImplementation(async () => {});
     expect(await entregarAlerta(deps, 12)).toBe("enviado");     // el botón "Reintentar envío"
   });
@@ -285,6 +288,16 @@ describe("manejar (la puerta de entrada HTTP)", () => {
     expect(await respuesta.json()).toEqual({ alert_id: 7, status: "simulado" });
     expect(deps.crearAlerta).not.toHaveBeenCalled();
     expect(respuesta.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("un usuario autenticado sin permiso de rol recibe 403 antes de tocar la base", async () => {
+    const deps = depsFalsos({ puedeEjecutar: vi.fn(async () => false) });
+    const respuesta = await manejar(peticion({
+      headers: { Authorization: "Bearer token-valido", "Content-Type": "application/json" }, body: JSON.stringify({ accion: "revisar" }),
+    }), deps);
+    expect(respuesta.status).toBe(403);
+    expect(await respuesta.json()).toEqual({ error: "Tu rol no tiene permiso para esta acción." });
+    expect(deps.crearAlerta).not.toHaveBeenCalled();
   });
 
   it("reintentar una alerta que no existe responde 404", async () => {

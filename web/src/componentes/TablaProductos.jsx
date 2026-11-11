@@ -15,7 +15,7 @@ function Estado({ p }) {
 }
 
 // Tabla de productos con buscador, filtros y las acciones de cada fila.
-export default function TablaProductos({ productos, categorias, ocupado, onMovimiento, onEditar, onEliminar }) {
+export default function TablaProductos({ productos, categorias, ocupado, puedeEditar = true, puedeEliminar = true, onMovimiento, onEditar, onEliminar }) {
   const [texto, setTexto] = useState("");
   const [categoria, setCategoria] = useState("");
   const [soloUrgentes, setSoloUrgentes] = useState(false);
@@ -60,7 +60,7 @@ export default function TablaProductos({ productos, categorias, ocupado, onMovim
   async function enviarMovimiento(evento, id) {
     evento.preventDefault();
     const datos = Object.fromEntries(new FormData(evento.currentTarget));
-    if (await onMovimiento(id, datos.tipo, datos.cantidad)) setAbierto(null);
+    if (await onMovimiento(id, datos.tipo, datos.cantidad, datos.motivo)) setAbierto(null);
   }
 
   async function enviarEdicion(evento, id) {
@@ -90,7 +90,7 @@ export default function TablaProductos({ productos, categorias, ocupado, onMovim
           <thead>
             <tr>
               <th>Código</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Costo unit.</th>
-              <th>Valor</th><th>Se agota en</th><th>Estado</th><th>Acciones</th>
+              <th>Valor</th><th>Se agota en</th><th>Pronóstico</th><th>Estado</th>{(puedeEditar || puedeEliminar) && <th>Acciones</th>}
             </tr>
           </thead>
           <tbody>
@@ -113,10 +113,19 @@ export default function TablaProductos({ productos, categorias, ocupado, onMovim
                     {p.consumo_diario !== null && <small className="sub">{p.consumo_diario} u./día</small>}
                   </div>
                 </td>
+                <td data-etiqueta="Pronóstico">
+                  <div className="forecast-meta"><strong>{p.modelo_pronostico}</strong><small>{p.demanda_diaria_esperada} u./día · rango {p.intervalo.inferior.toFixed(1)}–{p.intervalo.superior.toFixed(1)} · confianza {p.confianza}</small>
+                    <svg viewBox="0 0 100 24" role="img" aria-label={`Historial y pronóstico de ${p.nombre}`} className="forecast-sparkline">
+                      <polyline fill="none" stroke="currentColor" strokeWidth="2" points={p.serie_historial.map((v, i) => `${i * 50 / Math.max(1, p.serie_historial.length - 1)},${23 - Math.min(20, v * 3)}`).join(" ")} />
+                      <polyline fill="none" stroke="#c08a2c" strokeWidth="2" strokeDasharray="3 2" points={p.serie_pronostico.map((d, i) => `${50 + i * 50 / Math.max(1, p.serie_pronostico.length - 1)},${23 - Math.min(20, d.cantidad * 3)}`).join(" ")} />
+                    </svg>
+                    <small>{p.fecha_agotamiento_estimada ? `Agotamiento: ${p.fecha_agotamiento_estimada}` : "Sin demanda de venta"}</small>
+                  </div>
+                </td>
                 <td data-etiqueta="Estado"><Estado p={p} /></td>
-                <td data-etiqueta="Acciones">
+                {(puedeEditar || puedeEliminar) && <td data-etiqueta="Acciones">
                   <div className="actions">
-                    <details open={abierto === `movimiento:${p.id}`}>
+                    {puedeEditar && <details open={abierto === `movimiento:${p.id}`}>
                       <summary onClick={alternar(`movimiento:${p.id}`)}>Movimiento</summary>
                       {abierto === `movimiento:${p.id}` && (
                         <form className="inline-form" onSubmit={(e) => enviarMovimiento(e, p.id)}>
@@ -124,12 +133,15 @@ export default function TablaProductos({ productos, categorias, ocupado, onMovim
                             <option value="entrada">Entrada</option>
                             <option value="salida">Salida</option>
                           </select>
+                          <select name="motivo" aria-label="Motivo de salida" defaultValue="venta">
+                            <option value="venta">Venta</option><option value="merma">Merma</option><option value="ajuste">Ajuste</option><option value="otro">Otro</option>
+                          </select>
                           <input type="number" name="cantidad" min="1" step="1" placeholder="Unidades" aria-label="Unidades" required />
                           <button disabled={ocupado}>Registrar</button>
                         </form>
                       )}
-                    </details>
-                    <details open={abierto === `editar:${p.id}`}>
+                    </details>}
+                    {puedeEditar && <details open={abierto === `editar:${p.id}`}>
                       <summary onClick={alternar(`editar:${p.id}`)}>Editar</summary>
                       {abierto === `editar:${p.id}` && (
                         <form className="edit-form" onSubmit={(e) => enviarEdicion(e, p.id)}>
@@ -142,10 +154,10 @@ export default function TablaProductos({ productos, categorias, ocupado, onMovim
                           <button disabled={ocupado}>Guardar cambios</button>
                         </form>
                       )}
-                    </details>
-                    <button type="button" className="danger" disabled={ocupado} onClick={() => onEliminar(p.id)}>Eliminar</button>
+                    </details>}
+                    {puedeEliminar && <button type="button" className="danger" disabled={ocupado} onClick={() => onEliminar(p.id)}>Eliminar</button>}
                   </div>
-                </td>
+                </td>}
               </tr>
             ))}
           </tbody>

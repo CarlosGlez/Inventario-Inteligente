@@ -199,6 +199,9 @@ code { background: var(--bg); border: 1px solid var(--border); color: var(--gold
 button:disabled { opacity: .55; cursor: not-allowed; }
 button:disabled:hover { border-color: var(--border); color: inherit; }
 .primary:disabled:hover { background: var(--gold); border-color: var(--gold); color: #1a1405; }
+.forecast-meta { display: grid; gap: 2px; min-width: 120px; font-size: .78rem; }
+.forecast-meta small { color: var(--muted); }
+.forecast-sparkline { width: 100px; height: 24px; color: var(--blue); overflow: visible; }
 
 /* Formularios flotantes de cada fila (Movimiento y Editar).
    En pantallas anchas la tabla cabe completa, así que no necesita barra de

@@ -1,5 +1,7 @@
 # Control inteligente de inventario y alertas de stock
 
+> Ampliación Equipo 4: consulta el [plan de trabajo](docs/PLAN_AMPLIACION.md), la [auditoría inicial](docs/AUDITORIA_INICIAL.md) y la [arquitectura](docs/ARQUITECTURA.md). Las funciones nuevas y sus resultados se documentarán aquí conforme se implementen y verifiquen.
+
 Proyecto 2 · versión **React (Vite) + Supabase**.
 
 Un bot revisa el inventario cada minuto, detecta los productos por debajo de su stock mínimo y avisa por correo. Cada lunes manda además un reporte semanal con todo el inventario y sus movimientos. La página permite administrar productos, registrar entradas y salidas, importar y exportar Excel, y estima cuándo se agotará cada producto.
@@ -34,7 +36,7 @@ Es la misma aplicación que la versión Flask + SQLite, con una diferencia impor
 
 ## Requisitos
 
-- Windows 10 u 11 con [Node.js](https://nodejs.org) 20 o superior.
+- Windows 10 u 11 con [Node.js](https://nodejs.org) 22.12 o superior (el lockfile usa Vite 8 y Vitest 5).
 - Una cuenta gratuita en [supabase.com](https://supabase.com).
 - Para correos reales: la cuenta de Gmail de la escuela con una **contraseña de aplicación**.
 - Python 3, solo si vas a migrar los datos de la versión Flask.
@@ -58,6 +60,8 @@ En el panel abre **SQL Editor**. Para cada archivo, en este orden, pega su conte
 3. `supabase/migrations/0003_seguridad.sql`
 4. `supabase/migrations/0005_reporte_semanal.sql`
 
+Después aplica, en orden, `0007_ventas_pronostico.sql`, `0008_proveedores_compras_roles.sql`, `0009_pronostico_alertas_backoff.sql` y `0010_correo_ordenes.sql`. Los relojes `0004` y `0006` se configuran en el paso 6.
+
 Los dos archivos de reloj (`0004_cron.sql` y `0006_cron_reporte.sql`) se corren más adelante, en el paso 6.
 
 **Comprobación (opcional):** pega `supabase/tests/flujo.sql` y pulsa Run. Debe responder `TODAS LAS PRUEBAS PASARON`. No deja datos: todo se deshace al terminar.
@@ -67,6 +71,7 @@ Los dos archivos de reloj (`0004_cron.sql` y `0006_cron_reporte.sql`) se corren 
 1. En **Authentication → Users**, pulsa **Add user → Create new user**. Escribe un correo y una contraseña y marca la opción de confirmar al usuario automáticamente.
 2. Pueden crear un usuario compartido o uno por integrante.
 3. En **Authentication → Sign In / Providers**, apaga **Allow new users to sign up**. Así nadie más puede registrarse.
+4. Como el usuario se creó después de la migración de roles, asígnale el rol inicial en SQL Editor: `update public.profiles set role = 'admin' where user_id = (select id from auth.users where email = 'TU_CORREO');`
 
 ### 4. Desplegar el bot
 
@@ -99,6 +104,8 @@ En **Edge Functions → Secrets** agrega:
 | `SMTP_PASSWORD` | La **contraseña de aplicación** de esa cuenta, no la contraseña normal |
 | `SMTP_FROM` | La misma cuenta de Gmail |
 | `ALERT_TO` | El correo que recibe las alertas |
+| `DEMO_MODE` | `true` fuerza el modo simulado aunque SMTP esté configurado |
+| `APP_URL` | Origen de la aplicación, para incluir un enlace a la orden en los correos al proveedor |
 
 Para generar un `CRON_SECRET` en PowerShell:
 
@@ -106,7 +113,7 @@ Para generar un `CRON_SECRET` en PowerShell:
 [guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
 ```
 
-**Modo de demostración:** si no agregas ningún secret `SMTP_…` ni `ALERT_TO`, el bot funciona igual pero no envía correos. Cada alerta queda como **"Simulado: no enviado"**, con el correo redactado para que se pueda mostrar.
+**Modo de demostración:** `DEMO_MODE=true` fuerza que ningún correo salga, incluso si los secrets SMTP están cargados. Cada alerta queda como **"Simulado: no enviado"**, con el correo redactado para mostrar.
 
 **Por qué el puerto 465:** Supabase bloquea los puertos 25 y 587 en las Edge Functions. El 465 sí está permitido y Gmail lo acepta.
 
@@ -132,6 +139,27 @@ select created, status_code, content from net._http_response order by created de
 - `404` → la función no está desplegada o `project_url` está mal escrito.
 
 Los dos archivos traen comentados los comandos para pausar cada reloj, cambiar su horario o quitarlo.
+
+### Ampliación Equipo 4
+
+- Las salidas nuevas se clasifican como venta, merma, ajuste u otro. Las filas anteriores permanecen `sin_clasificar`.
+- Ejecuta `python scripts/evaluar_pronostico.py` para regenerar la evaluación sintética y su gráfica. Los datos llevan semilla fija y no representan ventas reales.
+- Las pantallas Proveedores, Órdenes y Usuarios aparecen según el rol. Las cuentas se crean en Supabase Auth; el perfil nuevo empieza como `consulta`.
+- Historial de alertas permite filtrar/exportar CSV y muestra destinatario, ID SMTP y estado. `enviado` significa aceptado por SMTP, no entrega confirmada.
+- Para probar correo, sigue [CONFIGURAR_CORREO.md](docs/CONFIGURAR_CORREO.md) y ejecuta `scripts/probar_correo.ps1` con token de sesión de admin.
+- Un proveedor debe estar vinculado a un producto para generar un borrador de compra; la recepción actualiza el inventario.
+- Para sembrar 4 usuarios (uno por rol), 18 productos, un año de movimientos ficticios, proveedor, alerta y orden, aplica las migraciones 0007–0010 y ejecuta:
+
+  ```powershell
+  cd web
+  Copy-Item .env.demo.example .env.demo
+  # Edita .env.demo: confirma INVENTARIO_DEMO, URL del proyecto dedicado y service role key.
+  npm run seed
+  ```
+
+  El comando imprime contraseñas aleatorias solo al ejecutarse; se regeneran en la siguiente ejecución. Guarda la salida de forma segura para la demo. No siembres sobre una base con datos reales.
+
+  Correos demo: `demo-admin@example.invalid`, `demo-almacen@example.invalid`, `demo-compras@example.invalid` y `demo-consulta@example.invalid`. La contraseña de cada cuenta se genera al ejecutar el seed y se muestra en la consola; no existe una contraseña fija en el repositorio.
 
 ### 7. Correr la página en Windows
 
@@ -200,9 +228,14 @@ Nunca pongas la llave maestra ni la contraseña del correo en `web/` ni en Git. 
 
 | Qué prueba | Cómo se corre | Cuántas |
 |---|---|---|
-| Lógica de la página, del bot y de los correos | `cd web` y luego `npm test` | 151 |
-| Reglas de la base de datos | Pegar `supabase/tests/flujo.sql` en SQL Editor | 27 |
+| Lógica de la página, del bot, pronóstico y correos | `cd web` y luego `npm test` | Conteo del runner |
+| Reglas de la base de datos | Pegar `supabase/tests/flujo.sql` tras aplicar migraciones 0001–0003, 0005 y 0007–0010 | Incluye pruebas de ventas y órdenes |
+| Roles/RPC (Postgres local) | `psql -d inventario_test -f supabase/tests/roles_local.sql` | Requiere correr el setup y migraciones |
 | Migración de datos | `py -m unittest herramientas\test_migrar.py` | 7 |
+
+Las pruebas nuevas de pronóstico cubren series sin historial, demanda cero, huecos, valores negativos y degradación estacional. En el entorno de auditoría Node/npm y un intérprete Python no estaban disponibles, así que esas pruebas no pudieron arrancar y no se declara cobertura.
+
+Documentación: [arquitectura](docs/ARQUITECTURA.md), [auditoría](docs/AUDITORIA_INICIAL.md), [plan](docs/PLAN_AMPLIACION.md), [correo](docs/CONFIGURAR_CORREO.md) y [evidencia](docs/EVIDENCIA_ALERTAS.md).
 
 Cubren lo mismo que las pruebas de la versión Flask: importación de todo o nada, códigos sin duplicar, stock que nunca queda negativo, una alerta por episodio, alerta nueva tras recuperarse, reintento de correos fallidos, costos y pronóstico.
 

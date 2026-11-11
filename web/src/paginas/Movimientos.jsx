@@ -31,7 +31,7 @@ export default function Movimientos() {
           <div className="table-scroll tabla-tarjetas">
             <table>
               <thead>
-                <tr><th>Fecha</th><th>Código</th><th>Producto</th><th>Tipo</th><th>Unidades</th><th>Antes</th><th>Después</th></tr>
+                <tr><th>Fecha</th><th>Código</th><th>Producto</th><th>Tipo</th><th>Motivo</th><th>Unidades</th><th>Antes</th><th>Después</th></tr>
               </thead>
               <tbody>
                 {movimientos.map((m) => (
@@ -40,6 +40,7 @@ export default function Movimientos() {
                     <td data-etiqueta="Código">{m.product_code}</td>
                     <td data-etiqueta="Producto">{m.product_name}</td>
                     <td data-etiqueta="Tipo">{mayuscula(m.tipo)}</td>
+                    <td data-etiqueta="Motivo">{m.motivo ?? "sin_clasificar"}</td>
                     <td data-etiqueta="Unidades">{m.cantidad}</td>
                     <td data-etiqueta="Antes">{m.stock_anterior}</td>
                     <td data-etiqueta="Después">{m.stock_nuevo}</td>

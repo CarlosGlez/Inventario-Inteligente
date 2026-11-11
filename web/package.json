@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed": "node --env-file=.env.demo scripts/seed-demo.js",
+    "eval:forecast": "python ../scripts/evaluar_pronostico.py"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

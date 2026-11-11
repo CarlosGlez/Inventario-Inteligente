@@ -21,6 +21,17 @@ vi.mock("../src/lib/api.js", () => ({
   iniciarSesion: vi.fn(),
   cerrarSesion: vi.fn(),
   obtenerSesion: vi.fn(),
+  obtenerPerfil: vi.fn(),
+  guardarProveedor: vi.fn(),
+  listarProveedores: vi.fn(),
+  vincularProductoProveedor: vi.fn(),
+  listarOrdenes: vi.fn(),
+  crearBorradores: vi.fn(),
+  recibirLineaOrden: vi.fn(),
+  enviarOrdenProveedor: vi.fn(),
+  listarPerfiles: vi.fn(),
+  actualizarPerfil: vi.fn(),
+  crearUsuario: vi.fn(),
   alCambiarSesion: vi.fn(() => () => {}),
 }));
 
@@ -38,6 +49,7 @@ function abrir(ruta = "/") {
 beforeEach(() => {
   vi.clearAllMocks();
   api.obtenerSesion.mockResolvedValue({ user: { email: "equipo@escuela.mx" } });
+  api.obtenerPerfil.mockResolvedValue({ role: "admin", active: true });
   api.alCambiarSesion.mockReturnValue(() => {});
   api.cargarInventario.mockResolvedValue({ productos: [BAJO, SUFICIENTE], consumo: [], resumen: RESUMEN });
   api.cargarResumen.mockResolvedValue(RESUMEN);
@@ -144,7 +156,7 @@ describe("Inventario", () => {
     fireEvent.change(within(fila).getByLabelText("Unidades"), { target: { value: "99" } });
     fireEvent.click(within(fila).getByRole("button", { name: "Registrar" }));
     expect(await screen.findByText("La salida supera el stock disponible; el inventario no puede quedar negativo.")).toBeTruthy();
-    expect(api.registrarMovimiento).toHaveBeenCalledWith(1, "salida", "99");
+    expect(api.registrarMovimiento).toHaveBeenCalledWith(1, "salida", "99", "venta");
     expect(screen.getByText("P003")).toBeTruthy();
   });
 
@@ -199,7 +211,7 @@ describe("Movimientos", () => {
     abrir("/movimientos");
     const fila = (await screen.findByText("Bolígrafo azul")).closest("tr");
     expect(within(fila).getByText("Salida")).toBeTruthy();
-    expect([...fila.querySelectorAll("td")].slice(4).map((celda) => celda.textContent)).toEqual(["3", "10", "7"]);
+    expect([...fila.querySelectorAll("td")].slice(4).map((celda) => celda.textContent)).toEqual(["sin_clasificar", "3", "10", "7"]);
   });
 });
 
