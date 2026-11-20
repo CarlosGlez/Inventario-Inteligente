@@ -12,8 +12,8 @@ export default function ImportarExcel({ ocupado, onImportar }) {
       <h3>Importar desde Excel</h3>
       <p>
         Columnas: <code>codigo, nombre, categoria, stock_actual, stock_minimo, costo</code>. Se revisa todo el archivo
-        antes de guardar y los códigos existentes se actualizan. Si no trae <code>costo</code>, los productos
-        existentes conservan el suyo.
+        antes de guardar. El código identifica productos existentes para actualizarlos; las filas nuevas reciben
+        automáticamente un código. Si no trae <code>costo</code>, los productos existentes conservan el suyo.
       </p>
       <form className="stack" onSubmit={enviar}>
         <label>Archivo .xlsx<input type="file" name="archivo" accept=".xlsx" required /></label>

@@ -53,3 +53,10 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - Las órdenes se pueden filtrar por fechas, estado, proveedor, producto y rango de monto total.
 - Cada tarjeta muestra el monto final calculado con las cantidades y costos unitarios de sus líneas.
 - El ordenamiento permite fecha ascendente/descendente y monto ascendente/descendente; por defecto muestra primero la orden más reciente.
+
+## Códigos automáticos de producto
+
+- Los productos nuevos reciben un código incremental `PROD-000001` asignado por Supabase; los códigos existentes se conservan.
+- El formulario de alta ya no solicita código y la edición lo muestra como solo lectura. La base rechaza cambios directos al código.
+- En Excel, el código identifica productos existentes para actualizarlos; para las filas nuevas la base genera un código automático.
+- La migración `0015_codigos_producto_automaticos.sql` crea la secuencia y las protecciones de base de datos.

@@ -35,9 +35,9 @@ export function enteroNoNegativo(valor, etiqueta) {
  * campo si algo está mal. Con costoObligatorio = false (Excel viejo), un costo
  * vacío se devuelve como null: "no cambiar el costo que ya tiene".
  */
-export function limpiarProducto(datos, { costoObligatorio = true } = {}) {
+export function limpiarProducto(datos, { costoObligatorio = true, codigoObligatorio = true } = {}) {
   const limpio = {};
-  for (const campo of ["codigo", "nombre", "categoria"]) {
+  for (const campo of [...(codigoObligatorio ? ["codigo"] : []), "nombre", "categoria"]) {
     if (estaVacio(datos[campo])) throw new Error(`${campo}: este campo es obligatorio.`);
     limpio[campo] = String(datos[campo]).trim();
     if (limpio[campo].length > TEXTO_MAXIMO) throw new Error(`${campo}: máximo ${TEXTO_MAXIMO} caracteres.`);

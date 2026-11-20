@@ -170,7 +170,7 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
                       <summary onClick={alternar(`editar:${p.id}`)}>Editar</summary>
                       {abierto === `editar:${p.id}` && (
                         <form className="edit-form" onSubmit={(e) => enviarEdicion(e, p.id)}>
-                          <label>Código<input name="codigo" defaultValue={p.codigo} maxLength={120} required /></label>
+                          <label>Código<input value={p.codigo} readOnly aria-label="Código automático del producto" /></label>
                           <label>Nombre<input name="nombre" defaultValue={p.nombre} maxLength={120} required /></label>
                           <label>Categoría<input name="categoria" defaultValue={p.categoria} maxLength={120} list="categorias" required /></label>
                           <label>Stock actual<input type="number" name="stock_actual" min="0" step="1" defaultValue={p.stock_actual} required /></label>

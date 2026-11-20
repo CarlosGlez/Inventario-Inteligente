@@ -65,6 +65,7 @@ nav a.active { background: var(--bg); color: var(--gold); box-shadow: inset 0 3p
 
 /* Formularios */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid .field-note { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .86rem; }
 .form-grid button { align-self: end; grid-column: 1 / -1; }
 .stack { display: grid; gap: 12px; }
 label { display: grid; gap: 5px; font-size: .86rem; font-weight: 650; color: var(--muted); }

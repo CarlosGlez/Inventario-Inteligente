@@ -22,7 +22,7 @@ export default function FormularioProducto({ categorias, ocupado, onGuardar }) {
     <section className="card">
       <h3>Registrar producto</h3>
       <form className="form-grid" onSubmit={enviar}>
-        <label>Código<input name="codigo" maxLength={120} required /></label>
+        <p className="field-note">El código se asignará automáticamente al guardar y no se puede modificar.</p>
         <label>Nombre<input name="nombre" maxLength={120} required /></label>
         <label>Categoría
           <select aria-label="Categoría" value={categoriaSeleccionada} required

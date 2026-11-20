@@ -91,7 +91,7 @@ export async function cargarInventario() {
 
 /** Crea un producto (id = null) o edita uno existente. */
 export async function guardarProducto(datos, id = null) {
-  const producto = limpiarProducto(datos);
+  const producto = limpiarProducto(datos, { codigoObligatorio: false });
   if (id === null) {
     revisar(await supabase.from("products").insert(producto));
     return;
