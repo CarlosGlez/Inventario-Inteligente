@@ -90,6 +90,7 @@ button:hover, .button:hover { border-color: var(--gold); color: var(--gold); }
 .priority-total strong { font-size: 1.5rem; color: var(--gold); }
 .priority-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
 .priority-list li { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "rank name buy" "rank meta buy"; gap: 2px 12px; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.priority-list li.has-quick-order { grid-template-areas: "rank name buy" "rank meta buy" "rank action action"; }
 .rank { grid-area: rank; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #1a1405; font-weight: 800; font-size: .9rem; }
 .priority-name { grid-area: name; display: flex; flex-direction: column; min-width: 0; }
 .priority-name span, .priority-meta span { color: var(--muted); font-size: .8rem; }
@@ -97,6 +98,7 @@ button:hover, .button:hover { border-color: var(--gold); color: var(--gold); }
 .priority-buy { grid-area: buy; text-align: right; display: flex; flex-direction: column; }
 .priority-buy strong { color: var(--gold); }
 .priority-buy span { color: var(--muted); font-size: .82rem; }
+.priority-action { grid-area: action; justify-self: start; padding: 6px 10px; font-size: .82rem; }
 .more { margin: 12px 0 0; font-size: .86rem; }
 .empty-ok { margin: 0; color: var(--green) !important; }
 
@@ -309,5 +311,6 @@ button:disabled:hover { border-color: var(--border); color: inherit; }
   .tabla-tarjetas td > .badge { justify-self: start; }
   .actions { align-items: center; }
   .priority-list li { grid-template-columns: auto 1fr; grid-template-areas: "rank name" "rank meta" "rank buy"; }
+  .priority-list li.has-quick-order { grid-template-areas: "rank name" "rank meta" "rank buy" "rank action"; }
   .priority-buy { text-align: left; flex-direction: row; gap: 10px; align-items: baseline; }
 }

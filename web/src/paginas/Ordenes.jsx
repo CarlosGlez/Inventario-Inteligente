@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Pagina from "../componentes/Pagina.jsx";
 import { enviarOrdenProveedor, listarOrdenes, recibirLineaOrden } from "../lib/api.js";
 import { fechaLocal } from "../lib/fechas.js";
@@ -17,8 +18,10 @@ function fechaOrden(orden) {
 
 export default function Ordenes() {
   const perfil = usePerfil();
+  const ubicacion = useLocation();
+  const navegar = useNavigate();
   const [ordenes, setOrdenes] = useState([]);
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useState(ubicacion.state?.aviso ?? null);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [estado, setEstado] = useState("");
@@ -29,6 +32,9 @@ export default function Ordenes() {
   const [ordenar, setOrdenar] = useState("fecha_desc");
   const cargar = useCallback(() => listarOrdenes().then(setOrdenes).catch((e) => setAviso({ tipo: "error", texto: e.message })), []);
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    if (ubicacion.state?.aviso) navegar(".", { replace: true, state: null });
+  }, [ubicacion.state, navegar]);
 
   const proveedores = useMemo(() => [...new Map(ordenes.map((o) => [String(o.proveedor_id), o.proveedores?.nombre ?? "Proveedor"])).entries()]
     .sort((a, b) => a[1].localeCompare(b[1], "es")), [ordenes]);

@@ -165,6 +165,13 @@ export async function crearBorradores(alertaId) {
   return revisar(await supabase.rpc("crear_ordenes_desde_alerta", { p_alerta_id: alertaId }));
 }
 
+export async function crearOrdenRapida(productId, cantidad) {
+  return revisar(await supabase.rpc("crear_orden_rapida", {
+    p_producto_id: productId,
+    p_cantidad: enteroNoNegativo(cantidad, "cantidad sugerida"),
+  }));
+}
+
 export async function recibirLineaOrden(lineaId, cantidad) {
   return revisar(await supabase.rpc("recibir_linea_orden", { p_linea_id: lineaId, p_cantidad: Number(cantidad) }));
 }

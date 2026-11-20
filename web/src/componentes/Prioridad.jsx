@@ -4,7 +4,7 @@ import DiasRestantes from "./DiasRestantes.jsx";
 const MAXIMO_VISIBLE = 6;
 
 // Panel "Reabastecer primero": lo que se agotaría antes va arriba.
-export default function Prioridad({ prioridad }) {
+export default function Prioridad({ prioridad, puedeCrearOrden = false, ocupado = false, onCrearOrdenRapida }) {
   const total = prioridad.reduce((suma, p) => suma + p.costo_sugerido, 0);
   return (
     <section className="card priority-card">
@@ -21,7 +21,7 @@ export default function Prioridad({ prioridad }) {
         <>
           <ol className="priority-list">
             {prioridad.slice(0, MAXIMO_VISIBLE).map((p, i) => (
-              <li key={p.id}>
+              <li key={p.id} className={puedeCrearOrden && Number(p.stock_actual) === 0 ? "has-quick-order" : ""}>
                 <span className="rank">{i + 1}</span>
                 <div className="priority-name"><strong>{p.nombre}</strong><span>{p.codigo} · {p.categoria}</span></div>
                 <div className="priority-meta">
@@ -29,6 +29,7 @@ export default function Prioridad({ prioridad }) {
                   <DiasRestantes producto={p} />
                 </div>
                 <div className="priority-buy"><strong>+{p.sugerido} u.</strong><span>{dinero(p.costo_sugerido)}</span></div>
+                {puedeCrearOrden && Number(p.stock_actual) === 0 && <button type="button" className="priority-action" disabled={ocupado} onClick={() => onCrearOrdenRapida(p)}>Armar orden</button>}
               </li>
             ))}
           </ol>

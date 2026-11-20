@@ -66,3 +66,10 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - El registro y directorio de proveedores ya no muestran ni escriben el monto de compra mínima; el valor heredado en la base se ignora.
 - Los nuevos borradores de orden ya no aumentan cantidades para alcanzar ese monto; se conservan plazo de entrega y mínimo de unidades por producto.
 - La migración `0016_ignorar_compra_minima_proveedor.sql` actualiza la generación de borradores. Las órdenes que ya existían no se modifican.
+
+## Orden rápida para productos agotados
+
+- En “Reabastecer primero”, Compras y admin pueden armar una orden desde cada producto con stock cero.
+- Se elige el proveedor activo asignado con menor costo cotizado y se usa la cantidad sugerida, respetando el mínimo de unidades del producto.
+- La acción crea o reutiliza un borrador sin alerta asociada; si el producto no tiene proveedor activo, muestra el motivo.
+- La migración `0017_orden_rapida_producto_agotado.sql` valida permisos, existencia de stock cero y crea la línea del pedido.

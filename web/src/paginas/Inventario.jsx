@@ -6,7 +6,7 @@ import Pagina from "../componentes/Pagina.jsx";
 import Prioridad from "../componentes/Prioridad.jsx";
 import TablaProductos from "../componentes/TablaProductos.jsx";
 import {
-  cargarInventario, eliminarProducto, eliminarTodosProductos, guardarProducto, importarProductos, registrarMovimiento, revisarAhora,
+  cargarInventario, crearOrdenRapida, eliminarProducto, eliminarTodosProductos, guardarProducto, importarProductos, registrarMovimiento, revisarAhora,
 } from "../lib/api.js";
 import { avisoRevision } from "../lib/avisos.js";
 import { crearExcel, descargar, leerExcel, revisarArchivo } from "../lib/excel.js";
@@ -78,6 +78,18 @@ export default function Inventario() {
   const alEditar = (id, datosProducto) => ejecutar(() => guardarProducto(datosProducto, id), "Producto actualizado.");
   const alMover = (id, tipo, cantidad, motivo) => ejecutar(() => registrarMovimiento(id, tipo, cantidad, motivo), "Movimiento registrado.");
 
+  async function alCrearOrdenRapida(producto) {
+    setOcupado(true);
+    try {
+      const orden = await crearOrdenRapida(producto.id, producto.sugerido);
+      navegar("/ordenes", { state: { aviso: { tipo: "success", texto: `Borrador ${orden.folio} listo para ${orden.proveedor}, con ${orden.cantidad} unidad(es).` } } });
+    } catch (motivo) {
+      setAviso({ tipo: "error", texto: motivo.message });
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   function alEliminar(id) {
     if (!window.confirm("¿Eliminar este producto?")) return Promise.resolve(false);
     return ejecutar(() => eliminarProducto(id), "Producto eliminado. Su historial anterior se conserva.");
@@ -148,7 +160,7 @@ export default function Inventario() {
         </div>
       </div>
 
-      <Prioridad prioridad={prioridad} />
+      <Prioridad prioridad={prioridad} puedeCrearOrden={perfil.role === "admin" || perfil.role === "compras"} ocupado={ocupado} onCrearOrdenRapida={alCrearOrdenRapida} />
 
       {puedeEditar && <div className="two-columns">
         <FormularioProducto categorias={categorias} ocupado={ocupado} onGuardar={alGuardar} />
