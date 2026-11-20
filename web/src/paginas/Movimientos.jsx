@@ -4,6 +4,15 @@ import { cargarResumen, listarMovimientos } from "../lib/api.js";
 import { fechaLocal } from "../lib/fechas.js";
 
 const mayuscula = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1);
+const motivos = {
+  sin_clasificar: "Sin clasificar",
+  compra: "Compra o recepción",
+  devolucion: "Devolución",
+  venta: "Venta",
+  merma: "Merma",
+  ajuste: "Ajuste",
+  otro: "Otro",
+};
 
 // Historial de entradas y salidas. Solo lectura.
 export default function Movimientos() {
@@ -40,7 +49,7 @@ export default function Movimientos() {
                     <td data-etiqueta="Código">{m.product_code}</td>
                     <td data-etiqueta="Producto">{m.product_name}</td>
                     <td data-etiqueta="Tipo">{mayuscula(m.tipo)}</td>
-                    <td data-etiqueta="Motivo">{m.motivo ?? "sin_clasificar"}</td>
+                    <td data-etiqueta="Motivo">{motivos[m.motivo] ?? motivos.sin_clasificar}</td>
                     <td data-etiqueta="Unidades">{m.cantidad}</td>
                     <td data-etiqueta="Antes">{m.stock_anterior}</td>
                     <td data-etiqueta="Después">{m.stock_nuevo}</td>

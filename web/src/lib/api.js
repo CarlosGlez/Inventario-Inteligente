@@ -111,11 +111,11 @@ export async function eliminarTodosProductos() {
 }
 
 /** Registra una entrada o salida. La base rechaza lo que dejaría el stock negativo. */
-export async function registrarMovimiento(id, tipo, cantidad, motivo = "venta") {
+export async function registrarMovimiento(id, tipo, cantidad, motivo = tipo === "entrada" ? "compra" : "venta") {
   const unidades = enteroNoNegativo(cantidad, "cantidad");
   if (unidades === 0) throw new Error("cantidad: debe ser mayor que cero.");
   return revisar(await supabase.rpc("registrar_movimiento", {
-    p_producto_id: id, p_tipo: tipo, p_cantidad: unidades, p_motivo: tipo === "entrada" ? "otro" : motivo,
+    p_producto_id: id, p_tipo: tipo, p_cantidad: unidades, p_motivo: motivo,
   }));
 }
 

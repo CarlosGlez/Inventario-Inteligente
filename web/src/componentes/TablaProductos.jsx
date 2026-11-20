@@ -20,7 +20,7 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
   const [categoria, setCategoria] = useState("");
   const [soloUrgentes, setSoloUrgentes] = useState(false);
   const [tipoMovimiento, setTipoMovimiento] = useState("entrada");
-  const [motivoMovimiento, setMotivoMovimiento] = useState("venta");
+  const [motivoMovimiento, setMotivoMovimiento] = useState("compra");
   const [abierto, setAbierto] = useState(null); // "movimiento:3" o "editar:3"
 
   // Los formularios flotantes se cierran al hacer clic fuera o con Escape.
@@ -131,19 +131,35 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
                       <summary onClick={alternar(`movimiento:${p.id}`)}>Movimiento</summary>
                       {abierto === `movimiento:${p.id}` && (
                         <form className="inline-form" onSubmit={(e) => enviarMovimiento(e, p.id)}>
-                          <select name="tipo" aria-label="Tipo de movimiento" value={tipoMovimiento} onChange={(e) => setTipoMovimiento(e.target.value)}>
+                          <select name="tipo" aria-label="Tipo de movimiento" value={tipoMovimiento} onChange={(e) => {
+                            const tipo = e.target.value;
+                            setTipoMovimiento(tipo);
+                            setMotivoMovimiento(tipo === "entrada" ? "compra" : "venta");
+                          }}>
                             <option value="entrada">Entrada</option>
                             <option value="salida">Salida</option>
                           </select>
                           <select name="motivo" aria-label="Motivo del movimiento" value={motivoMovimiento} onChange={(e) => setMotivoMovimiento(e.target.value)}>
-                            <option value="venta">Venta</option><option value="merma">Merma</option><option value="ajuste">Ajuste</option><option value="otro">Otro</option>
+                            {tipoMovimiento === "entrada" ? <>
+                              <option value="compra">Compra o recepción</option>
+                              <option value="devolucion">Devolución</option>
+                              <option value="ajuste">Ajuste positivo</option>
+                              <option value="otro">Otro</option>
+                            </> : <>
+                              <option value="venta">Venta</option>
+                              <option value="merma">Merma</option>
+                              <option value="ajuste">Ajuste negativo</option>
+                              <option value="otro">Otro</option>
+                            </>}
                           </select>
                           <p className="movement-help">
                             {tipoMovimiento === "entrada" ? "La entrada suma unidades al inventario." : "La salida resta unidades del inventario."}{" "}
+                            {motivoMovimiento === "compra" && "Compra o recepción: mercancía recibida de un proveedor."}
+                            {motivoMovimiento === "devolucion" && "Devolución: unidades devueltas que vuelven al inventario."}
                             {motivoMovimiento === "venta" && "Venta: unidades vendidas a un cliente."}
                             {motivoMovimiento === "merma" && "Merma: unidades dañadas, vencidas o perdidas."}
-                            {motivoMovimiento === "ajuste" && "Ajuste: corrección para igualar el conteo físico."}
-                            {motivoMovimiento === "otro" && "Otro: causa distinta de venta, merma o ajuste."}
+                            {motivoMovimiento === "ajuste" && (tipoMovimiento === "entrada" ? "Ajuste positivo: el conteo físico supera el stock registrado." : "Ajuste negativo: el conteo físico es menor que el stock registrado.")}
+                            {motivoMovimiento === "otro" && "Otro: causa distinta de las opciones anteriores."}
                           </p>
                           <input type="number" name="cantidad" min="1" step="1" placeholder="Unidades" aria-label="Unidades" required />
                           <button disabled={ocupado}>Registrar</button>

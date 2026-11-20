@@ -45,3 +45,5 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 
 - La acción de eliminar producto aparece en una fila separada para no encimarse con los formularios desplegables de movimiento y edición.
 - El formulario de movimiento explica que una entrada suma stock y una salida lo resta, y describe los motivos de venta, merma, ajuste y otro.
+- Los motivos dependen del sentido: las entradas ofrecen compra/recepción, devolución, ajuste positivo u otro; las salidas ofrecen venta, merma, ajuste negativo u otro.
+- La migración `0014_motivos_movimiento_por_tipo.sql` permite guardar y validar esos motivos sin cambiar los movimientos históricos.
