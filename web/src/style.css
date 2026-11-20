@@ -198,6 +198,26 @@ tbody tr:hover { background: #ffffff06; }
   .alert-card { padding: 15px; }
 }
 
+/* Directorio CRUD de proveedores */
+.provider-form-actions, .provider-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.provider-table-card { padding: 0; overflow: hidden; }
+.provider-table-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 22px; }
+.provider-table-head h3 { margin: 0; }
+.provider-table-head p { margin: 5px 0 0; color: var(--muted); }
+.provider-table-head label { min-width: 190px; }
+.providers-table { min-width: 850px; }
+.providers-table th, .providers-table td { padding: 12px 14px; }
+.providers-table tbody tr:nth-child(even) { background: #ffffff04; }
+.provider-actions button { padding: 7px 10px; font-size: .82rem; }
+.badge.muted { background: var(--surface-2); color: var(--muted); }
+.provider-empty { padding: 20px 22px; margin: 0; }
+@media (max-width: 760px) {
+  .provider-table-card { padding: 0; }
+  .provider-table-head { align-items: stretch; padding: 16px; }
+  .provider-table-head label { width: 100%; }
+  .providers-table { min-width: 850px; }
+}
+
 footer { color: var(--muted); font-size: .85rem; padding-top: 20px !important; padding-bottom: 28px !important; }
 code { background: var(--bg); border: 1px solid var(--border); color: var(--gold); padding: 1px 6px; border-radius: 5px; font-size: .85em; }
 

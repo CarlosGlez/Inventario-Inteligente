@@ -33,3 +33,4 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - Si la base impide borrar un proveedor por sus órdenes asociadas, la acción lo marca como inactivo en vez de fallar.
 - Los proveedores archivados aparecen en una sección separada y ya no se ofrecen al asignar nuevos productos.
 - Sin órdenes asociadas, el proveedor se elimina físicamente.
+- Un selector permite alternar entre activos y archivados. La tabla muestra contacto, plazo, compra mínima, estado y acciones para crear, editar, archivar/reactivar o eliminar.
