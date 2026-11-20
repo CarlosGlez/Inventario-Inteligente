@@ -40,3 +40,8 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - Los proveedores archivados aparecen en una sección separada y ya no se ofrecen al asignar nuevos productos.
 - Sin órdenes asociadas, el proveedor se elimina físicamente.
 - Un selector permite alternar entre activos y archivados. La tabla muestra contacto, plazo, compra mínima, estado y acciones para crear, editar, archivar/reactivar o eliminar.
+
+## Acciones y movimientos del inventario
+
+- La acción de eliminar producto aparece en una fila separada para no encimarse con los formularios desplegables de movimiento y edición.
+- El formulario de movimiento explica que una entrada suma stock y una salida lo resta, y describe los motivos de venta, merma, ajuste y otro.

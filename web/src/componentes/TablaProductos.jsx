@@ -19,6 +19,8 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
   const [texto, setTexto] = useState("");
   const [categoria, setCategoria] = useState("");
   const [soloUrgentes, setSoloUrgentes] = useState(false);
+  const [tipoMovimiento, setTipoMovimiento] = useState("entrada");
+  const [motivoMovimiento, setMotivoMovimiento] = useState("venta");
   const [abierto, setAbierto] = useState(null); // "movimiento:3" o "editar:3"
 
   // Los formularios flotantes se cierran al hacer clic fuera o con Escape.
@@ -129,13 +131,20 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
                       <summary onClick={alternar(`movimiento:${p.id}`)}>Movimiento</summary>
                       {abierto === `movimiento:${p.id}` && (
                         <form className="inline-form" onSubmit={(e) => enviarMovimiento(e, p.id)}>
-                          <select name="tipo" aria-label="Tipo de movimiento">
+                          <select name="tipo" aria-label="Tipo de movimiento" value={tipoMovimiento} onChange={(e) => setTipoMovimiento(e.target.value)}>
                             <option value="entrada">Entrada</option>
                             <option value="salida">Salida</option>
                           </select>
-                          <select name="motivo" aria-label="Motivo de salida" defaultValue="venta">
+                          <select name="motivo" aria-label="Motivo del movimiento" value={motivoMovimiento} onChange={(e) => setMotivoMovimiento(e.target.value)}>
                             <option value="venta">Venta</option><option value="merma">Merma</option><option value="ajuste">Ajuste</option><option value="otro">Otro</option>
                           </select>
+                          <p className="movement-help">
+                            {tipoMovimiento === "entrada" ? "La entrada suma unidades al inventario." : "La salida resta unidades del inventario."}{" "}
+                            {motivoMovimiento === "venta" && "Venta: unidades vendidas a un cliente."}
+                            {motivoMovimiento === "merma" && "Merma: unidades dañadas, vencidas o perdidas."}
+                            {motivoMovimiento === "ajuste" && "Ajuste: corrección para igualar el conteo físico."}
+                            {motivoMovimiento === "otro" && "Otro: causa distinta de venta, merma o ajuste."}
+                          </p>
                           <input type="number" name="cantidad" min="1" step="1" placeholder="Unidades" aria-label="Unidades" required />
                           <button disabled={ocupado}>Registrar</button>
                         </form>
