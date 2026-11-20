@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import Pagina from "../componentes/Pagina.jsx";
-import { guardarProveedor, listarProveedores, vincularProductoProveedor } from "../lib/api.js";
+import { eliminarProveedor, guardarProveedor, listarProveedores, vincularProductoProveedor } from "../lib/api.js";
 import { supabase } from "../lib/supabase.js";
+import { usePerfil } from "../lib/perfil.jsx";
 
 export default function Proveedores() {
+  const perfil = usePerfil();
   const [lista, setLista] = useState([]);
   const [productos, setProductos] = useState([]);
   const [aviso, setAviso] = useState(null);
   const [proveedorId, setProveedorId] = useState("");
+  const [eliminandoId, setEliminandoId] = useState(null);
   useEffect(() => {
     Promise.all([listarProveedores(), supabase.from("products").select("id,codigo,nombre").order("nombre")])
       .then(([p, r]) => { if (r.error) throw r.error; setLista(p); setProductos(r.data); })
@@ -29,6 +32,20 @@ export default function Proveedores() {
       setAviso({ tipo: "success", texto: "Producto vinculado al proveedor." });
     } catch (e) { setAviso({ tipo: "error", texto: e.message }); }
   }
+  async function eliminar(p) {
+    if (perfil.role !== "admin") return;
+    if (!window.confirm(`¿Eliminar al proveedor “${p.nombre}”? Se quitarán sus vínculos con productos. Si tiene órdenes de compra, se conservará para proteger el historial.`)) return;
+    setEliminandoId(p.id);
+    try {
+      await eliminarProveedor(p.id);
+      setLista(await listarProveedores());
+      setAviso({ tipo: "success", texto: `Proveedor “${p.nombre}” eliminado.` });
+    } catch (e) {
+      setAviso({ tipo: "error", texto: e.message });
+    } finally {
+      setEliminandoId(null);
+    }
+  }
   return <Pagina aviso={aviso} resumen={null}>
     <div className="page-title"><div><h2>Proveedores</h2><p>Contactos, plazo de entrega y catálogo de productos surtidos.</p></div></div>
     <div className="two-columns">
@@ -44,6 +61,7 @@ export default function Proveedores() {
         <button disabled={!proveedorId}>Vincular</button>
       </form>
     </div>
-    <section className="card"><h3>Proveedores registrados ({lista.length})</h3><ul>{lista.map((p) => <li key={p.id}><strong>{p.nombre}</strong> · {p.correo} · lead time {p.lead_time_dias} días · mínimo {p.minimo_compra}</li>)}</ul></section>
+    <section className="card"><h3>Proveedores registrados ({lista.length})</h3><ul>{lista.map((p) => <li key={p.id}><strong>{p.nombre}</strong> · {p.correo} · lead time {p.lead_time_dias} días · mínimo {p.minimo_compra}
+      {perfil.role === "admin" && <button type="button" className="danger" disabled={eliminandoId === p.id} onClick={() => eliminar(p)}>Eliminar proveedor</button>}</li>)}</ul></section>
   </Pagina>;
 }

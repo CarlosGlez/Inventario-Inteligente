@@ -141,6 +141,14 @@ export async function guardarProveedor(proveedor, id = null) {
   return revisar(await supabase.from("proveedores").update(proveedor).eq("id", id).select().single());
 }
 
+export async function eliminarProveedor(id) {
+  const resultado = await supabase.from("proveedores").delete().eq("id", id);
+  if (resultado.error?.code === "23503") {
+    throw new Error("No se puede eliminar este proveedor porque tiene órdenes de compra asociadas. Se conservó para proteger ese historial.");
+  }
+  revisar(resultado);
+}
+
 export async function vincularProductoProveedor(proveedorId, productId, costoUnitario, minimoUnidades) {
   return revisar(await supabase.from("proveedor_productos").upsert({
     proveedor_id: proveedorId, product_id: productId, costo_unitario: costoUnitario, minimo_unidades: minimoUnidades,
