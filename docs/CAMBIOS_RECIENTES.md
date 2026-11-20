@@ -27,3 +27,9 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - La lista de proveedores muestra la acción de borrar solo a administradores y pide confirmación antes de proceder.
 - Si hay órdenes asociadas, la clave foránea impide el borrado y la interfaz explica que conserva el proveedor para proteger el historial.
 - La migración `0013_eliminar_proveedores_admin.sql` mantiene la gestión de alta/edición para compras, pero reserva el permiso DELETE al rol administrador.
+
+### Archivo automático cuando existe historial
+
+- Si la base impide borrar un proveedor por sus órdenes asociadas, la acción lo marca como inactivo en vez de fallar.
+- Los proveedores archivados aparecen en una sección separada y ya no se ofrecen al asignar nuevos productos.
+- Sin órdenes asociadas, el proveedor se elimina físicamente.

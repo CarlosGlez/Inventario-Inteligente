@@ -144,9 +144,11 @@ export async function guardarProveedor(proveedor, id = null) {
 export async function eliminarProveedor(id) {
   const resultado = await supabase.from("proveedores").delete().eq("id", id);
   if (resultado.error?.code === "23503") {
-    throw new Error("No se puede eliminar este proveedor porque tiene órdenes de compra asociadas. Se conservó para proteger ese historial.");
+    revisar(await supabase.from("proveedores").update({ activo: false }).eq("id", id).select("id").single());
+    return { archivado: true };
   }
   revisar(resultado);
+  return { archivado: false };
 }
 
 export async function vincularProductoProveedor(proveedorId, productId, costoUnitario, minimoUnidades) {

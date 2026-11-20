@@ -11,6 +11,8 @@ export default function Proveedores() {
   const [aviso, setAviso] = useState(null);
   const [proveedorId, setProveedorId] = useState("");
   const [eliminandoId, setEliminandoId] = useState(null);
+  const activos = lista.filter((p) => p.activo !== false);
+  const archivados = lista.filter((p) => p.activo === false);
   useEffect(() => {
     Promise.all([listarProveedores(), supabase.from("products").select("id,codigo,nombre").order("nombre")])
       .then(([p, r]) => { if (r.error) throw r.error; setLista(p); setProductos(r.data); })
@@ -34,12 +36,17 @@ export default function Proveedores() {
   }
   async function eliminar(p) {
     if (perfil.role !== "admin") return;
-    if (!window.confirm(`¿Eliminar al proveedor “${p.nombre}”? Se quitarán sus vínculos con productos. Si tiene órdenes de compra, se conservará para proteger el historial.`)) return;
+    if (!window.confirm(`¿Eliminar al proveedor “${p.nombre}”? Si tiene órdenes de compra, se archivará automáticamente para conservar el historial.`)) return;
     setEliminandoId(p.id);
     try {
-      await eliminarProveedor(p.id);
+      const resultado = await eliminarProveedor(p.id);
       setLista(await listarProveedores());
-      setAviso({ tipo: "success", texto: `Proveedor “${p.nombre}” eliminado.` });
+      if (resultado.archivado) {
+        if (String(proveedorId) === String(p.id)) setProveedorId("");
+        setAviso({ tipo: "success", texto: `“${p.nombre}” tenía órdenes asociadas y se archivó para conservar el historial.` });
+      } else {
+        setAviso({ tipo: "success", texto: `Proveedor “${p.nombre}” eliminado.` });
+      }
     } catch (e) {
       setAviso({ tipo: "error", texto: e.message });
     } finally {
@@ -55,13 +62,18 @@ export default function Proveedores() {
         <label>Compra mínima ($)<input type="number" min="0" step="0.01" name="minimo_compra" defaultValue="0" required /></label><button className="primary">Guardar</button>
       </form>
       <form className="card form-card" onSubmit={vincular}><h3>Asignar producto</h3>
-        <label>Proveedor<select name="proveedor_id" required onChange={(e) => setProveedorId(e.target.value)}><option value="">Seleccionar</option>{lista.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></label>
+        <label>Proveedor<select name="proveedor_id" required onChange={(e) => setProveedorId(e.target.value)}><option value="">Seleccionar</option>{activos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></label>
         <label>Producto<select name="product_id" required><option value="">Seleccionar</option>{productos.map((p) => <option key={p.id} value={p.id}>{p.codigo} · {p.nombre}</option>)}</select></label>
         <label>Costo unitario ($)<input name="costo_unitario" type="number" min="0" step="0.01" defaultValue="0" required /></label><label>Mínimo de unidades<input name="minimo_unidades" type="number" min="1" defaultValue="1" required /></label>
         <button disabled={!proveedorId}>Vincular</button>
       </form>
     </div>
-    <section className="card"><h3>Proveedores registrados ({lista.length})</h3><ul>{lista.map((p) => <li key={p.id}><strong>{p.nombre}</strong> · {p.correo} · lead time {p.lead_time_dias} días · mínimo {p.minimo_compra}
-      {perfil.role === "admin" && <button type="button" className="danger" disabled={eliminandoId === p.id} onClick={() => eliminar(p)}>Eliminar proveedor</button>}</li>)}</ul></section>
+    <section className="card"><h3>Proveedores activos ({activos.length})</h3>
+      {activos.length === 0 ? <p>No hay proveedores activos.</p> : <ul>{activos.map((p) => <li key={p.id}><strong>{p.nombre}</strong> · {p.correo} · lead time {p.lead_time_dias} días · mínimo {p.minimo_compra}
+        {perfil.role === "admin" && <button type="button" className="danger" disabled={eliminandoId === p.id} onClick={() => eliminar(p)}>Eliminar o archivar</button>}</li>)}</ul>}
+    </section>
+    {archivados.length > 0 && <section className="card"><h3>Proveedores archivados / inactivos ({archivados.length})</h3>
+      <ul>{archivados.map((p) => <li key={p.id}><strong>{p.nombre}</strong> <span className="badge">Archivado · inactivo</span> · {p.correo} · lead time {p.lead_time_dias} días</li>)}</ul>
+    </section>}
   </Pagina>;
 }
