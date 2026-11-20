@@ -6,7 +6,7 @@ import Pagina from "../componentes/Pagina.jsx";
 import Prioridad from "../componentes/Prioridad.jsx";
 import TablaProductos from "../componentes/TablaProductos.jsx";
 import {
-  cargarInventario, eliminarProducto, guardarProducto, importarProductos, registrarMovimiento, revisarAhora,
+  cargarInventario, eliminarProducto, eliminarTodosProductos, guardarProducto, importarProductos, registrarMovimiento, revisarAhora,
 } from "../lib/api.js";
 import { avisoRevision } from "../lib/avisos.js";
 import { crearExcel, descargar, leerExcel, revisarArchivo } from "../lib/excel.js";
@@ -85,6 +85,17 @@ export default function Inventario() {
     return ejecutar(() => eliminarProducto(id), "Producto eliminado. Su historial anterior se conserva.");
   }
 
+  function borrarTodos() {
+    const cantidadProductos = datos?.productos.length ?? 0;
+    if (!cantidadProductos || perfil.role !== "admin") return;
+    if (!window.confirm(`Vas a eliminar los ${cantidadProductos} productos del inventario. Se conservarán los movimientos y las líneas históricas de órdenes. ¿Deseas continuar?`)) return;
+    if (window.prompt(`Confirmación final: escribe ELIMINAR para borrar los ${cantidadProductos} productos.`)?.trim() !== "ELIMINAR") {
+      setAviso({ tipo: "info", texto: "No se borraron productos; la confirmación no coincidió." });
+      return;
+    }
+    ejecutar(eliminarTodosProductos, (total) => `Se eliminaron ${total} productos. Los movimientos y las líneas históricas de órdenes se conservaron.`);
+  }
+
   const alImportar = (archivo) => ejecutar(async () => {
     revisarArchivo(archivo);                                        // extensión y tamaño
     const items = await leerExcel(await archivo.arrayBuffer());     // valida todas las filas
@@ -135,6 +146,7 @@ export default function Inventario() {
       <div className="title-actions">
           <button type="button" className="button" disabled={ocupado} onClick={exportar}>Exportar a Excel</button>
           {perfil.role !== "consulta" && <button type="button" className="primary" disabled={ocupado} onClick={revisar}>Revisar inventario ahora</button>}
+          {perfil.role === "admin" && <button type="button" className="danger" disabled={ocupado || productos.length === 0} onClick={borrarTodos}>Borrar todos los productos</button>}
         </div>
       </div>
 

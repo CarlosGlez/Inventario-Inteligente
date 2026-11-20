@@ -104,6 +104,12 @@ export async function eliminarProducto(id) {
   revisar(await supabase.from("products").delete().eq("id", id));
 }
 
+/** Elimina todos los productos en una sola operación y devuelve cuántos fueron. */
+export async function eliminarTodosProductos() {
+  const filas = revisar(await supabase.from("products").delete().not("id", "is", null).select("id"));
+  return filas.length;
+}
+
 /** Registra una entrada o salida. La base rechaza lo que dejaría el stock negativo. */
 export async function registrarMovimiento(id, tipo, cantidad, motivo = "venta") {
   const unidades = enteroNoNegativo(cantidad, "cantidad");

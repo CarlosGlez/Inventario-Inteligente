@@ -15,3 +15,9 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - La migración `0012_productos_borrados_ordenes.sql` guarda código y nombre en cada línea de orden y cambia la referencia al producto a `ON DELETE SET NULL`.
 - La página de órdenes muestra esos snapshots cuando el producto ya no está en el catálogo.
 - Al recibir una línea sin producto enlazado, el sistema busca un producto re-creado con el mismo código; si no existe, muestra un error claro.
+
+## Borrado masivo del inventario
+
+- La pantalla de inventario ofrece el borrado masivo solo al rol administrador.
+- Requiere aceptar una confirmación con el número de productos y escribir `ELIMINAR` en el segundo paso.
+- La operación se ejecuta como una sola petición y muestra cuántos productos eliminó; movimientos y snapshots de órdenes permanecen.
