@@ -27,11 +27,11 @@ begin
     on conflict(key) do update set value = excluded.value;
 
   with ponderado as (
-    select p.id, sum(m.cantidad * (29 - d.offset))::numeric / sum(29 - d.offset) as diario
+    select p.id, sum(m.cantidad * (29 - d.day_offset))::numeric / sum(29 - d.day_offset) as diario
     from products p
-    cross join generate_series(0, 27) as d(offset)
+    cross join generate_series(0, 27) as d(day_offset)
     left join movements m on m.product_code = p.codigo and m.tipo = 'salida' and m.motivo = 'venta'
-      and (m.created_at at time zone 'UTC')::date = current_date - d.offset
+      and (m.created_at at time zone 'UTC')::date = current_date - d.day_offset
     group by p.id
   ), forecast as (
     select p.*, coalesce(nullif(w.diario, 0), c.total::numeric / greatest(1, (current_date - c.primera::date)), 0) as diario,

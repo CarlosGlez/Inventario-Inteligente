@@ -237,9 +237,9 @@ begin
   assert v_alerta.subject = 'Alerta de inventario: 1 producto(s) con stock bajo', 'T15: asunto "' || v_alerta.subject || '"';
   assert v_alerta.body =
     E'Productos por debajo del stock mínimo:\n\n'
-    || E'• C1 — Tóner: actual 1, mínimo 4. Reponer 3 u. × $1,250.50 = $3,751.50\n\n'
-    || E'Costo estimado para llegar al mínimo: $3,751.50\n\n'
-    || 'Generado por Control inteligente de inventario y alertas de stock.',
+    || E'• C1 — Tóner: stock 1, demanda estimada 0.00 u./día, sugerencia 3 u. ($3,751.50)\n\n'
+    || E'Costo sugerido de reposición: $3,751.50\n\n'
+    || 'El modelo y fecha estimada son orientativos; revise existencias y proveedor antes de comprar.',
     'T15: cuerpo del correo distinto: ' || v_alerta.body;
   assert dinero(0) = '$0.00' and dinero(12.5) = '$12.50' and dinero(1234567.8) = '$1,234,567.80', 'T15: formato de dinero';
 end $$;
@@ -256,7 +256,7 @@ begin
   assert (select valor from resumen_inventario) = 2000000000 * 9999999999.99, 'T15b: valor con números enormes';
   assert (select reponer from resumen_inventario) = 2147483647 * 9999999999.99, 'T15b: reponer con números enormes';
   v_id := crear_alerta_stock_bajo();
-  assert (select body from alerts where id = v_id) like '%= $21,474,836,469,978,525,163.53%',
+  assert (select body from alerts where id = v_id) like '%($21,474,836,469,978,525,163.53)%',
          'T15b: el importe enorme debe verse completo en el correo: ' || (select body from alerts where id = v_id);
 end $$;
 
@@ -328,7 +328,7 @@ begin
   assert (select count(*) from reclamar_alerta(v_id)) = 0, 'T19: mientras se envía nadie más puede reclamarla';
   assert (select attempts from alerts where id = v_id) = 1, 'T19: un reclamo rechazado no suma intentos';
 
-  update alerts set status = 'error', error = 'falló', last_attempt_at = now() - interval '2 minutes' where id = v_id;
+  update alerts set status = 'error', error = 'falló', last_attempt_at = now() - interval '2 minutes 1 second' where id = v_id;
   assert (select count(*) from reclamar_alerta(v_id)) = 1, 'T19: una alerta con error se puede reintentar';
   assert (select attempts = 2 and error is null from alerts where id = v_id), 'T19: 2 intentos y error limpio';
 
