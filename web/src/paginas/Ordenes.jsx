@@ -22,7 +22,7 @@ export default function Ordenes() {
   }
   function imprimir(orden) {
     const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-    const lineas = (orden.orden_lineas ?? []).map((l) => `<tr><td>${escape(l.products?.codigo)}</td><td>${escape(l.products?.nombre)}</td><td>${l.cantidad}</td><td>${Number(l.costo_unitario).toFixed(2)}</td><td>${(l.cantidad * Number(l.costo_unitario)).toFixed(2)}</td></tr>`).join("");
+    const lineas = (orden.orden_lineas ?? []).map((l) => `<tr><td>${escape(l.product_code ?? l.products?.codigo)}</td><td>${escape(l.product_name ?? l.products?.nombre)}</td><td>${l.cantidad}</td><td>${Number(l.costo_unitario).toFixed(2)}</td><td>${(l.cantidad * Number(l.costo_unitario)).toFixed(2)}</td></tr>`).join("");
     const ventana = window.open("", "_blank");
     if (!ventana) { setAviso({ tipo: "error", texto: "Permite ventanas emergentes para imprimir la orden como PDF." }); return; }
     ventana.document.write(`<meta charset="utf-8"><title>${escape(orden.folio)}</title><h1>Orden de compra ${escape(orden.folio)}</h1><p>Proveedor: ${escape(orden.proveedores?.nombre)}</p><table border="1" cellpadding="8"><thead><tr><th>Código</th><th>Producto</th><th>Unidades</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>${lineas}</tbody></table><p>Usa Imprimir → Guardar como PDF.</p><script>window.print()<\/script>`);
@@ -30,7 +30,7 @@ export default function Ordenes() {
   }
   return <Pagina aviso={aviso} resumen={null}><div className="page-title"><div><h2>Órdenes de compra</h2><p>Los borradores se generan desde una alerta y agrupan líneas por proveedor.</p></div></div>
     {ordenes.length === 0 && <section className="card"><p>No hay órdenes. En Historial de alertas puedes generar un borrador desde una alerta.</p></section>}
-    <div className="alert-list">{ordenes.map((o) => <article className="card" key={o.id}><div className="alert-top"><h3>{o.folio} · {o.proveedores?.nombre}</h3><span className="badge">{o.estado}</span></div><p>Creada: {fechaLocal(o.created_at)}</p><div className="title-actions"><button type="button" onClick={() => imprimir(o)}>Exportar a PDF</button>{(perfil.role === "admin" || perfil.role === "compras") && o.estado === "borrador" && <button type="button" onClick={() => enviar(o.id)}>Enviar al proveedor</button>}</div><ul>{o.orden_lineas?.map((l) => <li key={l.id}>{l.products?.codigo} · {l.products?.nombre}: {l.recibida}/{l.cantidad} unidades
+    <div className="alert-list">{ordenes.map((o) => <article className="card" key={o.id}><div className="alert-top"><h3>{o.folio} · {o.proveedores?.nombre}</h3><span className="badge">{o.estado}</span></div><p>Creada: {fechaLocal(o.created_at)}</p><div className="title-actions"><button type="button" onClick={() => imprimir(o)}>Exportar a PDF</button>{(perfil.role === "admin" || perfil.role === "compras") && o.estado === "borrador" && <button type="button" onClick={() => enviar(o.id)}>Enviar al proveedor</button>}</div><ul>{o.orden_lineas?.map((l) => <li key={l.id}>{l.product_code ?? l.products?.codigo} · {l.product_name ?? l.products?.nombre}: {l.recibida}/{l.cantidad} unidades
       {(perfil.role === "admin" || perfil.role === "almacen") && !["recibida", "cancelada"].includes(o.estado) && <button type="button" onClick={() => recibir(l)}>Registrar recepción</button>}</li>)}</ul></article>)}</div>
   </Pagina>;
 }

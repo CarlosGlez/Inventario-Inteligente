@@ -9,3 +9,9 @@
 - El banner de modo simulado consulta el estado actual del backend.
 
 Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` completaron correctamente antes de estos commits.
+
+## Eliminación de productos con historial de compra
+
+- La migración `0012_productos_borrados_ordenes.sql` guarda código y nombre en cada línea de orden y cambia la referencia al producto a `ON DELETE SET NULL`.
+- La página de órdenes muestra esos snapshots cuando el producto ya no está en el catálogo.
+- Al recibir una línea sin producto enlazado, el sistema busca un producto re-creado con el mismo código; si no existe, muestra un error claro.
