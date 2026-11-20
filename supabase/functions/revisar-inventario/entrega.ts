@@ -138,7 +138,7 @@ const CORS = {
 function json(datos: unknown, status = 200): Response {
   return new Response(JSON.stringify(datos), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json" },
+    headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" },
   });
 }
 

@@ -1,199 +1,156 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Pagina from "../componentes/Pagina.jsx";
-import { cargarResumen, enviarReporte, listarAlertas, reintentarAlerta, revisarAhora } from "../lib/api.js";
+import { cargarResumen, consultarModoCorreo, crearBorradores, enviarReporte, listarAlertas, listarProductosBajos, reintentarAlerta, revisarAhora } from "../lib/api.js";
 import { ETIQUETAS_ESTADO, avisoReintento, avisoReporte, avisoRevision, puedeReintentar } from "../lib/avisos.js";
 import { dinero } from "../lib/dinero.js";
 import { fechaLocal } from "../lib/fechas.js";
-import { crearBorradores } from "../lib/api.js";
+import { calcularReposicion, crearCsvAlertas } from "../lib/alertas.js";
 import { usePerfil } from "../lib/perfil.jsx";
 
-// Parte común de las dos tarjetas: el correo guardado y el resultado del envío.
-function CorreoYResultado({ alerta }) {
-  return (
-    <details>
-      <summary>Ver correo generado y resultado</summary>
-      <p><strong>Asunto:</strong> {alerta.subject}</p>
-      <pre>{alerta.body}</pre>
-      <p>
-        Intentos: {alerta.attempts}
-        {alerta.last_attempt_at && <> · Último intento: {fechaLocal(alerta.last_attempt_at)}</>}
-      </p>
-      <p>Destinatario: {alerta.recipient ?? "sin registro"} · Entrega: {alerta.delivery_status ?? alerta.status}
-        {alerta.message_id && <> · ID de mensaje: <code>{alerta.message_id}</code></>}
-        {alerta.sent_at && <> · Enviado: {fechaLocal(alerta.sent_at)}</>}
-      </p>
-      {alerta.error && <p className="error-text"><strong>Error:</strong> {alerta.error}</p>}
-    </details>
-  );
-}
+const tipoDe = (a) => a.tipo === "orden_compra" ? "orden_compra" : a.tipo === "reporte_semanal" ? "reporte_semanal" : "stock_bajo";
+const textoTipo = (tipo) => ({ stock_bajo: "Alerta de stock", orden_compra: "Orden de compra", reporte_semanal: "Reporte semanal" })[tipo];
+const cantidad = (i) => calcularReposicion(i).faltante;
+const costoUnitario = (i) => calcularReposicion(i).costoUnitario;
+const subtotal = (i) => calcularReposicion(i).subtotal;
+const fechaDia = (a) => new Date(a.created_at).toLocaleDateString("en-CA");
+const tituloDia = (key) => {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const ayer = new Date(hoy); ayer.setDate(ayer.getDate() - 1);
+  const fecha = new Date(`${key}T12:00:00`);
+  if (fecha.toDateString() === hoy.toDateString()) return "Hoy";
+  if (fecha.toDateString() === ayer.toDateString()) return "Ayer";
+  return fecha.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+};
 
 function Estado({ alerta }) {
-  return <span className={`badge ${alerta.status}`}>{ETIQUETAS_ESTADO[alerta.status] ?? alerta.status}</span>;
+  const estado = alerta.delivery_status ?? alerta.status;
+  const icono = estado === "enviado" || estado === "entregado" ? "✓" : estado === "error" || estado === "fallido" || estado === "rebotado" ? "!" : "◷";
+  const texto = ETIQUETAS_ESTADO[estado] ?? (estado === "entregado" ? "Enviado" : estado === "fallido" || estado === "rebotado" ? "Error de envío" : estado);
+  return <span className={`badge status-badge ${estado}`}><span aria-hidden="true">{icono}</span> {texto}</span>;
 }
 
-// Tarjeta de una alerta de stock bajo: los productos que cayeron bajo su mínimo.
-function TarjetaAlerta({ alerta, children }) {
+function CorreoYResultado({ alerta }) {
+  return <details className="mail-details"><summary>Ver correo generado y resultado</summary>
+    <p><strong>Asunto:</strong> {alerta.subject}</p><pre>{alerta.body}</pre>
+    <p>Intentos: {alerta.attempts}{alerta.last_attempt_at && <> · Último intento: {fechaLocal(alerta.last_attempt_at)}</>}</p>
+    <p>Destinatario: {alerta.recipient ?? "sin registro"} · Entrega: {alerta.delivery_status ?? alerta.status}
+      {alerta.message_id && <> · ID: <code>{alerta.message_id}</code></>}{alerta.sent_at && <> · Enviado: {fechaLocal(alerta.sent_at)}</>}</p>
+    {alerta.error && <p className="error-text"><strong>Error:</strong> {alerta.error}</p>}
+  </details>;
+}
+
+function TablaReposicion({ items }) {
+  const productos = [...items].sort((a, b) => (Number(a.stock_actual) / Math.max(1, Number(a.stock_minimo)))
+    - (Number(b.stock_actual) / Math.max(1, Number(b.stock_minimo))));
+  const total = productos.reduce((s, i) => s + subtotal(i), 0);
+  const conAgotamiento = productos.some((i) => i.fecha_agotamiento_estimada);
+  return <div className="table-scroll alert-table-scroll"><table className="replenishment-table">
+    <thead><tr><th>Producto</th><th>Actual</th><th>Mínimo</th><th>Nivel</th>{conAgotamiento && <th>Se agota en</th>}<th>Reponer</th><th>Costo</th></tr></thead>
+    <tbody>{productos.map((i) => {
+      const actual = Number(i.stock_actual) || 0, minimo = Number(i.stock_minimo) || 0;
+      const porcentaje = minimo > 0 ? Math.min(100, actual / minimo * 100) : 100;
+      const nivel = actual <= minimo * .5 ? "Crítico" : actual < minimo ? "Por agotarse" : "Suficiente";
+      const clase = nivel === "Crítico" ? "critical" : nivel === "Por agotarse" ? "warning" : "healthy";
+      return <tr key={i.id ?? i.codigo}><td><strong>{i.codigo} — {i.nombre}</strong></td><td>{actual}</td><td>{minimo}</td>
+        <td><span className="stock-level" aria-label={`${nivel}: ${actual} de ${minimo} unidades`}>
+          <span className="stock-track" role="progressbar" aria-valuenow={actual} aria-valuemin="0" aria-valuemax={Math.max(1, minimo)} aria-label={`Stock de ${i.nombre}`}>
+            <span className={clase} style={{ width: `${porcentaje}%` }} /></span><small>{nivel} · {actual}/{minimo}</small>
+        </span></td>{conAgotamiento && <td>{i.fecha_agotamiento_estimada ? Math.max(0, Math.ceil((new Date(i.fecha_agotamiento_estimada).getTime() - Date.now()) / 86400000)) + " días" : "—"}</td>}
+        <td>{cantidad(i)} u.</td><td>{dinero(costoUnitario(i))}<small className="sub">{dinero(subtotal(i))} subtotal</small></td></tr>;
+    })}</tbody><tfoot><tr><th colSpan={conAgotamiento ? 6 : 5}>Total de reposición al mínimo</th><th>{dinero(total)}</th></tr></tfoot>
+  </table></div>;
+}
+
+function Tarjeta({ alerta, children }) {
+  const tipo = tipoDe(alerta);
   const items = Array.isArray(alerta.items) ? alerta.items : [];
-  return (
-    <article className="card alert-card">
-      <div className="alert-top">
-        <div>
-          <h3>Alerta #{alerta.id}</h3>
-          <span>{fechaLocal(alerta.created_at)} · {items.length} producto(s)</span>
-        </div>
-        <Estado alerta={alerta} />
-      </div>
-      <ul>
-        {items.map((item) => (
-          <li key={item.codigo}>
-            <strong>{item.codigo} — {item.nombre}</strong>: actual {item.stock_actual}, mínimo {item.stock_minimo}
-            {item.costo_reponer !== undefined && (
-              <> · reponer {item.faltante} u. × {dinero(item.costo)} = <strong>{dinero(item.costo_reponer)}</strong></>
-            )}
-          </li>
-        ))}
-      </ul>
-      <CorreoYResultado alerta={alerta} />
-      {children}
-    </article>
-  );
+  const reporte = tipo === "reporte_semanal" && !Array.isArray(alerta.items) ? alerta.items ?? {} : null;
+  const lineasOrden = tipo === "orden_compra" ? items : [];
+  return <article className={`card alert-card type-${tipo}`}>
+    <div className="alert-top"><div><span className="type-label">{textoTipo(tipo)}</span>
+      <h3>{tipo === "stock_bajo" ? `Alerta #${alerta.id}` : tipo === "orden_compra" ? `Orden de compra #${alerta.orden_id ?? alerta.id}` : `Reporte semanal #${alerta.id}`}</h3>
+      <span>{fechaLocal(alerta.created_at)} · {tipo === "stock_bajo" ? `${items.length} producto(s)` : tipo === "orden_compra" ? `${lineasOrden.length} línea(s)` : `${reporte?.resumen?.total ?? 0} producto(s) · ${reporte?.movimientos?.length ?? 0} movimiento(s)`}</span>
+    </div><Estado alerta={alerta} /></div>
+    {tipo === "stock_bajo" && <TablaReposicion items={items} />}
+    {tipo === "orden_compra" && <><p>Proveedor: {alerta.recipient ?? "sin destinatario"} · Orden de compra preparada para aprobación manual.</p>
+      <ul>{lineasOrden.map((l, i) => <li key={`${l.codigo}-${i}`}><strong>{l.codigo} — {l.nombre}</strong>: {l.cantidad} u. × {dinero(l.costo_unitario)} = {dinero(l.subtotal ?? Number(l.cantidad) * Number(l.costo_unitario))}</li>)}</ul></>}
+    {reporte && <ul><li>Productos con stock bajo: <strong>{reporte.resumen?.bajos ?? 0}</strong></li><li>Valor del inventario: <strong>{dinero(reporte.resumen?.valor)}</strong></li>
+      <li>Movimientos de la semana: Entradas: {reporte.entradas ?? 0} u. · Salidas: {reporte.salidas ?? 0} u.</li></ul>}
+    <CorreoYResultado alerta={alerta} />{children}
+  </article>;
 }
 
-// Tarjeta de un reporte semanal: el resumen de la "foto" que se envió.
-// El detalle completo (las tablas) va en el correo.
-function TarjetaReporte({ alerta, children }) {
-  const foto = alerta.items && !Array.isArray(alerta.items) ? alerta.items : {};
-  const resumen = foto.resumen ?? {};
-  const movimientos = Array.isArray(foto.movimientos) ? foto.movimientos.length : 0;
-  return (
-    <article className="card alert-card">
-      <div className="alert-top">
-        <div>
-          <h3>Reporte semanal #{alerta.id}</h3>
-          <span>{fechaLocal(alerta.created_at)} · {resumen.total ?? 0} producto(s) · {movimientos} movimiento(s)</span>
-        </div>
-        <Estado alerta={alerta} />
-      </div>
-      <ul>
-        <li>Productos con stock bajo: <strong>{resumen.bajos ?? 0}</strong></li>
-        <li>Valor del inventario: <strong>{dinero(resumen.valor)}</strong></li>
-        <li>Movimientos de la semana: Entradas: {foto.entradas ?? 0} u. · Salidas: {foto.salidas ?? 0} u.</li>
-      </ul>
-      <CorreoYResultado alerta={alerta} />
-      {children}
-    </article>
-  );
-}
-
-function TarjetaOrden({ alerta, children }) {
-  const lineas = Array.isArray(alerta.items) ? alerta.items : [];
-  return <article className="card alert-card"><div className="alert-top"><div><h3>Correo de orden #{alerta.orden_id ?? alerta.id}</h3><span>{fechaLocal(alerta.created_at)} · {lineas.length} línea(s)</span></div><Estado alerta={alerta} /></div>
-    <p>Proveedor: {alerta.recipient ?? "sin destinatario"} · Orden de compra enviada mediante aprobación manual.</p>
-    <ul>{lineas.map((l, i) => <li key={`${l.codigo}-${i}`}><strong>{l.codigo} — {l.nombre}</strong>: {l.cantidad} u. × {dinero(l.costo_unitario)} = {dinero(l.subtotal)}</li>)}</ul>
-    <CorreoYResultado alerta={alerta} />{children}</article>;
-}
-
-function TarjetaPruebaCorreo({ alerta, children }) {
-  return <article className="card alert-card"><div className="alert-top"><div><h3>Prueba SMTP #{alerta.id}</h3><span>{fechaLocal(alerta.created_at)}</span></div><Estado alerta={alerta} /></div>
-    <p>{alerta.body}</p><CorreoYResultado alerta={alerta} />{children}</article>;
-}
-
-// Historial de correos del bot: alertas de stock bajo y reportes semanales.
 export default function Alertas() {
-  const perfil = usePerfil();
-  const ubicacion = useLocation();
-  const navegar = useNavigate();
-  const [alertas, setAlertas] = useState(null);
-  const [resumen, setResumen] = useState(null);
-  // Si se llegó aquí desde "Revisar inventario ahora", el resultado viene en la navegación.
-  const [aviso, setAviso] = useState(ubicacion.state?.aviso ?? null);
-  const [ocupado, setOcupado] = useState(false);
-  const [filtroEstado, setFiltroEstado] = useState("");
+  const perfil = usePerfil(), ubicacion = useLocation(), navegar = useNavigate();
+  const [alertas, setAlertas] = useState(null), [resumen, setResumen] = useState(null), [bajos, setBajos] = useState([]), [modoDemo, setModoDemo] = useState(false);
+  const [aviso, setAviso] = useState(ubicacion.state?.aviso ?? null), [ocupado, setOcupado] = useState(false);
+  const [filtroEstado, setFiltroEstado] = useState(""), [filtroTipo, setFiltroTipo] = useState("");
+  const [desde, setDesde] = useState(""), [hasta, setHasta] = useState(""), [busqueda, setBusqueda] = useState("");
 
   const cargar = useCallback(async () => {
     try {
-      const [lista, r] = await Promise.all([listarAlertas(), cargarResumen()]);
-      setAlertas(lista);
-      setResumen(r);
-    } catch (motivo) {
-      setAlertas((actual) => actual ?? []);
-      setAviso({ tipo: "error", texto: motivo.message });
-    }
+      const [lista, r, productos, demo] = await Promise.all([
+        listarAlertas(), cargarResumen(), listarProductosBajos(), consultarModoCorreo().catch(() => false),
+      ]);
+      setAlertas(lista); setResumen(r); setBajos(productos.filter((p) => Number(p.stock_actual) < Number(p.stock_minimo))); setModoDemo(demo);
+    } catch (e) { setAlertas((a) => a ?? []); setAviso({ tipo: "error", texto: e.message }); }
   }, []);
-
   useEffect(() => { cargar(); }, [cargar]);
-
-  // El aviso ya se copió al estado; se quita de la navegación para que no
-  // reaparezca al recargar la página.
-  useEffect(() => {
-    if (ubicacion.state?.aviso) navegar(".", { replace: true, state: null });
-  }, [ubicacion.state, navegar]);
-
+  useEffect(() => { if (ubicacion.state?.aviso) navegar(".", { replace: true, state: null }); }, [ubicacion.state, navegar]);
   async function ejecutar(accion, crearAviso) {
     setOcupado(true);
-    try {
-      setAviso(crearAviso(await accion()));
-      await cargar();
-    } catch (motivo) {
-      setAviso({ tipo: "error", texto: motivo.message });
-    } finally {
-      setOcupado(false);
-    }
+    try { setAviso(crearAviso(await accion())); await cargar(); }
+    catch (e) { setAviso({ tipo: "error", texto: e.message }); }
+    finally { setOcupado(false); }
   }
-
   const revisar = () => ejecutar(revisarAhora, avisoRevision);
-  const reporte = () => ejecutar(enviarReporte, (resultado) => avisoReporte(resultado.status));
-  const reintentar = (id) => ejecutar(() => reintentarAlerta(id), (resultado) => avisoReintento(resultado.status));
+  const reporte = () => ejecutar(enviarReporte, (r) => avisoReporte(r.status));
+
+  const visibles = useMemo(() => (alertas ?? []).filter((a) => {
+    const tipo = tipoDe(a), estado = a.delivery_status ?? a.status, dia = fechaDia(a);
+    const term = busqueda.trim().toLocaleLowerCase("es");
+    const items = Array.isArray(a.items) ? a.items : Array.isArray(a.items?.productos) ? a.items.productos : [];
+    return (!filtroEstado || estado === filtroEstado) && (!filtroTipo || tipo === filtroTipo)
+      && (!desde || dia >= desde) && (!hasta || dia <= hasta)
+      && (!term || items.some((i) => `${i.codigo} ${i.nombre}`.toLocaleLowerCase("es").includes(term)));
+  }), [alertas, filtroEstado, filtroTipo, desde, hasta, busqueda]);
+  const grupos = useMemo(() => Object.groupBy ? Object.groupBy(visibles, fechaDia)
+    : visibles.reduce((g, a) => ((g[fechaDia(a)] ??= []).push(a), g), {}), [visibles]);
   const exportarCsv = () => {
-    const filas = (alertas ?? []).filter((a) => !filtroEstado || (a.delivery_status ?? a.status) === filtroEstado);
-    const escapar = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
-    const contenido = ["id,fecha,tipo,destinatario,estado_entrega,message_id,intentos", ...filas.map((a) => [a.id, a.created_at, a.tipo, a.recipient, a.delivery_status ?? a.status, a.message_id, a.attempts].map(escapar).join(","))].join("\r\n");
-    const url = URL.createObjectURL(new Blob(["\ufeff", contenido], { type: "text/csv;charset=utf-8" }));
-    const enlace = document.createElement("a"); enlace.href = url; enlace.download = "historial_alertas.csv"; enlace.click(); URL.revokeObjectURL(url);
+    const filas = visibles.map((a) => ({ ...a, tipo: textoTipo(tipoDe(a)) }));
+    const csv = crearCsvAlertas(filas);
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "historial_alertas.csv"; link.click(); URL.revokeObjectURL(url);
   };
+  const criticos = bajos.filter((p) => Number(p.stock_actual) <= Number(p.stock_minimo) * .5).length;
+  const porAgotarse = bajos.length - criticos;
 
-  return (
-    <Pagina resumen={resumen} aviso={aviso}>
-      <div className="page-title">
-        <div>
-          <h2>Historial de alertas</h2>
-          <p>
-            Un aviso nuevo se crea cuando un producto cae por debajo de su mínimo. Tras recuperarse, una nueva caída
-            genera otro aviso. Los reportes semanales también quedan aquí.
-          </p>
-        </div>
-        <div className="title-actions">
-          <select aria-label="Filtrar por estado de entrega" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
-            <option value="">Todos los estados</option>{["pendiente", "enviado", "entregado", "rebotado", "fallido", "simulado"].map((s) => <option key={s}>{s}</option>)}
-          </select>
-          <button type="button" className="button" disabled={!alertas?.length} onClick={exportarCsv}>Exportar CSV</button>
-          {(perfil.role === "admin" || perfil.role === "compras") && <button type="button" className="button" disabled={ocupado} onClick={reporte}>Enviar reporte ahora</button>}
-          {perfil.role !== "consulta" && <button type="button" className="primary" disabled={ocupado} onClick={revisar}>Revisar inventario ahora</button>}
-        </div>
+  return <Pagina resumen={resumen} aviso={aviso} nivelStock={{ bajos: bajos.length, criticos, porAgotarse }}>
+    <div className="page-title alerts-title"><div><h2>Historial de alertas</h2><p>Alertas de stock, órdenes de compra y reportes semanales.</p></div>
+      <div className="title-actions">
+        {(perfil.role === "admin" || perfil.role === "compras") && <button type="button" className="primary" disabled={ocupado || !alertas?.some((a) => tipoDe(a) === "stock_bajo")} onClick={() => {
+          const a = (alertas ?? []).find((x) => tipoDe(x) === "stock_bajo");
+          if (a) ejecutar(() => crearBorradores(a.id), () => ({ tipo: "success", texto: "Borradores agrupados por proveedor creados." }));
+        }}>Crear borradores de compra</button>}
+        <button type="button" className="button" disabled={!visibles.length} onClick={exportarCsv}>Exportar CSV</button>
+        {(perfil.role === "admin" || perfil.role === "compras") && <button type="button" className="button" disabled={ocupado} onClick={reporte}>Enviar reporte ahora</button>}
+        {perfil.role !== "consulta" && <button type="button" className="button" disabled={ocupado} onClick={revisar}>Revisar inventario ahora</button>}
       </div>
-
-      {alertas === null && <p className="cargando">Cargando alertas…</p>}
-      {alertas !== null && alertas.length === 0 && (
-        <section className="card"><p>No hay alertas. Pulsa “Revisar inventario ahora” para probar el flujo.</p></section>
-      )}
-      {alertas !== null && alertas.length > 0 && (
-        <div className="alert-list">
-          {alertas.filter((a) => !filtroEstado || (a.delivery_status ?? a.status) === filtroEstado).map((alerta) => {
-            const Tarjeta = alerta.tipo === "reporte_semanal" ? TarjetaReporte : alerta.tipo === "orden_compra" ? TarjetaOrden : alerta.tipo === "prueba_correo" ? TarjetaPruebaCorreo : TarjetaAlerta;
-            return (
-              <Tarjeta key={alerta.id} alerta={alerta}>
-                {puedeReintentar(alerta) && (perfil.role === "admin" || perfil.role === "compras") && (
-                  <button type="button" disabled={ocupado} onClick={() => reintentar(alerta.id)}>Reintentar envío</button>
-                )}
-                {alerta.tipo !== "reporte_semanal" && (perfil.role === "admin" || perfil.role === "compras") && (
-                  <button type="button" disabled={ocupado} onClick={() => ejecutar(() => crearBorradores(alerta.id), () => ({ tipo: "success", texto: "Borradores agrupados por proveedor creados." }))}>Crear borradores de compra</button>
-                )}
-              </Tarjeta>
-            );
-          })}
-        </div>
-      )}
-    </Pagina>
-  );
+    </div>
+    {modoDemo && <div className="demo-banner" role="status"><strong>Modo simulado activo.</strong> Sin SMTP configurado, las alertas se guardan pero no se envían.</div>}
+    <section className="alert-filters card" aria-label="Filtros del historial">
+      <label>Tipo<select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}><option value="">Todos los tipos</option><option value="stock_bajo">Alerta de stock</option><option value="orden_compra">Orden de compra</option><option value="reporte_semanal">Reporte semanal</option></select></label>
+      <label>Estado<select aria-label="Filtrar por estado de entrega" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}><option value="">Todos los estados</option>{["pendiente","enviado","entregado","rebotado","fallido","error","simulado"].map((s) => <option key={s}>{s}</option>)}</select></label>
+      <label>Desde<input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label><label>Hasta<input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
+      <label className="search-filter">Producto<input type="search" placeholder="Nombre o código" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} /></label>
+    </section>
+    {alertas === null && <p className="cargando">Cargando alertas…</p>}
+    {alertas?.length === 0 && <section className="card"><p>No hay alertas. Pulsa “Revisar inventario ahora” para probar el flujo.</p></section>}
+    {alertas?.length > 0 && Object.keys(grupos).length === 0 && <section className="card"><p>No hay resultados para estos filtros.</p></section>}
+    {Object.keys(grupos).sort((a,b) => b.localeCompare(a)).map((dia) => <section className="day-group" key={dia}>
+      <h3>{tituloDia(dia)}</h3><div className="alert-list">{grupos[dia].map((a) => <Tarjeta key={a.id} alerta={a}>
+        {puedeReintentar(a) && (perfil.role === "admin" || perfil.role === "compras") && <button type="button" disabled={ocupado} onClick={() => ejecutar(() => reintentarAlerta(a.id), (r) => avisoReintento(r.status))}>Reintentar envío</button>}
+      </Tarjeta>)}</div></section>)}
+  </Pagina>;
 }

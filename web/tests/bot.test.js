@@ -274,6 +274,7 @@ describe("manejar (la puerta de entrada HTTP)", () => {
     const deps = depsFalsos();
     const respuesta = await manejar(peticion({ headers: { "x-cron-secret": "secreto-del-cron" }, body: "{}" }), deps);
     expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
     expect(await respuesta.json()).toEqual({ alert_id: null, status: null, otras: [] });
     expect(deps.crearAlerta).toHaveBeenCalledTimes(1);
   });

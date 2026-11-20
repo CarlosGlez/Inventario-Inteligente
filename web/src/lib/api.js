@@ -63,6 +63,16 @@ export async function cargarResumen() {
   return revisar(await supabase.from("resumen_inventario").select("*").single());
 }
 
+export async function listarProductosBajos() {
+  return revisar(await supabase.from("products").select("id,codigo,nombre,stock_actual,stock_minimo,costo"));
+}
+
+export async function consultarModoCorreo() {
+  const { data, error } = await supabase.functions.invoke("revisar-inventario/modo-correo", { method: "GET" });
+  if (error) throw new Error(mensajeError(error));
+  return data?.demo === true;
+}
+
 /** Lo que necesita la pantalla principal, en una sola ida a la base. */
 export async function cargarInventario() {
   const [productos, consumo, ventas, resumen] = await Promise.all([

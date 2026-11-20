@@ -100,7 +100,7 @@ function tabla(encabezados: string, filas: string): string {
 
 function documento(titulo: string, colorEncabezado: string, encabezado: string, cuerpo: string): string {
   return `<!doctype html>`
-    + `<html lang="es"><head><meta charset="utf-8">`
+    + `<html lang="es"><head><meta charset="UTF-8">`
     + `<meta name="viewport" content="width=device-width, initial-scale=1">`
     + `<title>${escapar(titulo)}</title></head>`
     + `<body style="margin:0;padding:0;background:#f2f4f8;font-family:Arial,Helvetica,sans-serif;color:#1c2333;">`
@@ -135,7 +135,9 @@ export function htmlAlerta(alerta: { items: unknown }): string {
     // Las alertas antiguas no guardaban el faltante: se calcula.
     const faltante = numero(item.faltante) ?? (actual !== null && minimo !== null ? minimo - actual : null);
     const costo = numero(item.costo);
-    const reponer = numero(item.costo_reponer) ?? (costo !== null && faltante !== null ? costo * faltante : null);
+    // El total corresponde al faltante hasta el mínimo, igual que la cantidad
+    // presentada. Ignora snapshots antiguos cuyo costo_reponer usaba el pronóstico.
+    const reponer = costo !== null && faltante !== null ? Math.round(costo * faltante * 100) / 100 : null;
     if (reponer !== null) {
       total += reponer;
       hayCostos = true;
@@ -280,7 +282,7 @@ const esObjeto = (valor: unknown): valor is Fila => typeof valor === "object" &&
 function htmlOrden(items: Fila[], link?: string): string {
   const filas = items.map((i) => `<tr><td>${escapar(i.codigo)}</td><td>${escapar(i.nombre)}</td><td>${entero(i.cantidad)}</td><td>${dinero(i.costo_unitario)}</td><td>${dinero(i.subtotal)}</td></tr>`).join("");
   const enlace = link && /^https?:\/\//i.test(link) ? `<p><a href="${escapar(link)}">Abrir órdenes de compra</a></p>` : "";
-  return `<div style="font-family:Arial,sans-serif;color:#0f1b33"><h1 style="background:#0f1b33;color:white;padding:18px">Orden de compra</h1><table style="border-collapse:collapse;width:100%"><thead><tr><th>Código</th><th>Producto</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>${filas}</tbody></table>${enlace}<p>Responda para confirmar la orden y la fecha de entrega.</p></div>`;
+  return `<!doctype html><html lang="es"><head><meta charset="UTF-8"><title>Orden de compra</title></head><body><div style="font-family:Arial,sans-serif;color:#0f1b33"><h1 style="background:#0f1b33;color:white;padding:18px">Orden de compra</h1><table style="border-collapse:collapse;width:100%"><thead><tr><th>Código</th><th>Producto</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>${filas}</tbody></table>${enlace}<p>Responda para confirmar la orden y la fecha de entrega.</p></div></body></html>`;
 }
 
 export function htmlCorreo(alerta: { tipo?: string; items?: unknown; link?: string }): string | undefined {

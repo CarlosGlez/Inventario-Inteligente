@@ -623,6 +623,40 @@ begin
   assert (select recipient from alerts where orden_id=v_orden)='correo@example.invalid', 'T47: destinatario del proveedor';
 end $$;
 
+-- T48: subtotal de alerta usa faltante × costo, y la orden usa el mismo costo
+-- del catálogo aunque exista una cotización de proveedor distinta.
+do $$
+declare v_id bigint; v_alerta bigint; v_proveedor bigint; v_orden bigint; v_body text;
+begin
+  perform pg_temp.limpiar();
+  insert into products(codigo,nombre,categoria,stock_actual,stock_minimo,costo)
+    values('P48','Bolígrafo azul','Papelería',5,12,8) returning id into v_id;
+  insert into movements(product_code,product_name,tipo,motivo,cantidad,stock_anterior,stock_nuevo,created_at)
+    values('P48','Bolígrafo azul','salida','venta',100,105,5,now());
+  v_alerta := crear_alerta_stock_bajo();
+  select body into v_body from alerts where id=v_alerta;
+  assert (select (items->0->>'costo_reponer')::numeric from alerts where id=v_alerta)=56,
+    'T48: 7 unidades × $8 deben quedar guardadas como $56';
+  assert v_body like '%reponer 7 u. × $8.00 = $56.00%',
+    'T48: el correo usa el faltante, no la cantidad sugerida por pronóstico';
+  assert (select (items->0->>'costo_sugerido')::numeric from alerts where id=v_alerta)>56,
+    'T48: el costo de la sugerencia de pronóstico queda separado';
+
+  insert into products(codigo,nombre,categoria,stock_actual,stock_minimo,costo)
+    values('P49','Bolígrafo orden','Papelería',5,12,8) returning id into v_id;
+  insert into proveedores(nombre,correo,minimo_compra) values('Proveedor P49','p49@example.invalid',0) returning id into v_proveedor;
+  insert into proveedor_productos(proveedor_id,product_id,costo_unitario,minimo_unidades)
+    values(v_proveedor,v_id,1,1);
+  insert into alerts(items,subject,body,status) values(
+    jsonb_build_array(jsonb_build_object('id',v_id,'codigo','P49','nombre','Bolígrafo orden',
+      'stock_actual',5,'stock_minimo',12,'faltante',7,'costo',8,'cantidad_sugerida',7)),
+    'Prueba costo','Prueba','pendiente') returning id into v_alerta;
+  assert crear_ordenes_desde_alerta(v_alerta)=1,'T48: se crea la orden';
+  select id into v_orden from ordenes_compra where alerta_id=v_alerta;
+  assert (select costo_unitario from orden_lineas where orden_id=v_orden)=8,
+    'T48: la orden conserva el costo de compra del catálogo y no la cotización desactualizada';
+end $$;
+
 -- ---------------------------------------------------------------------------
 select 'TODAS LAS PRUEBAS PASARON' as resultado;
 rollback;

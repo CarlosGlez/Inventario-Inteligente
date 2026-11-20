@@ -15,6 +15,8 @@ vi.mock("../src/lib/api.js", () => ({
   importarProductos: vi.fn(),
   listarMovimientos: vi.fn(),
   listarAlertas: vi.fn(),
+  listarProductosBajos: vi.fn(),
+  consultarModoCorreo: vi.fn(),
   revisarAhora: vi.fn(),
   reintentarAlerta: vi.fn(),
   enviarReporte: vi.fn(),
@@ -55,6 +57,8 @@ beforeEach(() => {
   api.cargarResumen.mockResolvedValue(RESUMEN);
   api.listarMovimientos.mockResolvedValue([]);
   api.listarAlertas.mockResolvedValue([]);
+  api.listarProductosBajos.mockResolvedValue([]);
+  api.consultarModoCorreo.mockResolvedValue(false);
 });
 afterEach(cleanup);
 
@@ -230,12 +234,22 @@ describe("Historial de alertas", () => {
 
   it("una alerta simulada lo dice claramente y no ofrece reintentar", async () => {
     api.listarAlertas.mockResolvedValue([alerta({ id: 1 })]);
+    api.consultarModoCorreo.mockResolvedValue(true);
     abrir("/alertas");
     const tarjeta = (await screen.findByText("Alerta #1")).closest("article");
     expect(within(tarjeta).getByText("Simulado: no enviado")).toBeTruthy();
     expect(within(tarjeta).getByText("$225.00")).toBeTruthy();
     expect(within(tarjeta).getByText("Alerta de inventario: 1 producto(s) con stock bajo")).toBeTruthy();
     expect(within(tarjeta).queryByRole("button", { name: "Reintentar envío" })).toBeNull();
+    expect(screen.getByText(/Modo simulado activo/)).toBeTruthy();
+  });
+
+  it("oculta el aviso de modo demo aunque el historial conserve envíos simulados antiguos", async () => {
+    api.listarAlertas.mockResolvedValue([alerta({ id: 1 })]);
+    api.consultarModoCorreo.mockResolvedValue(false);
+    abrir("/alertas");
+    await screen.findByText("Alerta #1");
+    expect(screen.queryByText(/Modo simulado activo/)).toBeNull();
   });
 
   it("una alerta con error muestra el motivo y se puede reintentar", async () => {

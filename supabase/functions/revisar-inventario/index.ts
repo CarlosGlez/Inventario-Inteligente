@@ -11,6 +11,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { type Deps, manejar, type Puerta } from "./entrega.ts";
 import { enviarCorreo } from "./smtp.ts";
+import { configCorreo } from "./correo.ts";
 
 // Llave maestra del proyecto. Supabase la pone sola en el entorno de la función;
 // nunca se escribe en el código ni viaja al navegador.
@@ -95,7 +96,7 @@ const deps: Deps & Puerta = {
 
 async function gestionarUsuarios(req: Request): Promise<Response> {
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
-  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...cors, "Content-Type": "application/json" } });
+  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST" && req.method !== "GET") return json({ error: "Esta acción solo acepta GET o POST." }, 405);
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
@@ -133,7 +134,7 @@ async function gestionarUsuarios(req: Request): Promise<Response> {
 
 async function enviarOrdenProveedor(req: Request): Promise<Response> {
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
-  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...cors, "Content-Type": "application/json" } });
+  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Esta acción solo acepta POST." }, 405);
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
@@ -181,7 +182,7 @@ async function enviarOrdenProveedor(req: Request): Promise<Response> {
 
 async function probarCorreo(req: Request): Promise<Response> {
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
-  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...cors, "Content-Type": "application/json" } });
+  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Esta acción solo acepta POST." }, 405);
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
@@ -218,8 +219,30 @@ async function probarCorreo(req: Request): Promise<Response> {
 
 Deno.serve((req) => {
   const path = new URL(req.url).pathname;
+  if (path.endsWith("/modo-correo")) return consultarModoCorreo(req);
   if (path.endsWith("/usuarios")) return gestionarUsuarios(req);
   if (path.endsWith("/ordenes/enviar")) return enviarOrdenProveedor(req);
   if (path.endsWith("/correo/prueba")) return probarCorreo(req);
   return manejar(req, deps);
 });
+
+async function consultarModoCorreo(req: Request): Promise<Response> {
+  const cors = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+  };
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+    status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" },
+  });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "GET") return json({ error: "Esta consulta solo acepta GET." }, 405);
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const { data, error } = await base.auth.getUser(token);
+  if (error || !data.user) return json({ error: "No autorizado." }, 401);
+  try {
+    return json({ demo: configCorreo(Deno.env.toObject()).modo === "demo" });
+  } catch {
+    return json({ demo: false, configuracionIncompleta: true });
+  }
+}

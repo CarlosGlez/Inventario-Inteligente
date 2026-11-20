@@ -54,7 +54,7 @@ describe("htmlAlerta", () => {
 
   it("es un documento HTML completo, con estilos en línea", () => {
     expect(html.startsWith("<!doctype html>")).toBe(true);
-    expect(html).toContain('<meta charset="utf-8">');
+    expect(html).toContain('<meta charset="UTF-8">');
     expect(html).not.toContain("<style");   // muchos lectores de correo ignoran las hojas de estilo
     expect(html).not.toContain("<script");
     sinHuecos(html);
@@ -83,6 +83,14 @@ describe("htmlAlerta", () => {
   it("suma el costo total de reposición", () => {
     expect(html).toContain("Costo estimado para llegar al mínimo");
     expect(html).toContain("$3,791.50");
+  });
+
+  it("usa faltante por costo aunque una alerta guardada tenga un total antiguo incorrecto", () => {
+    const html = htmlAlerta({ items: [{ codigo: "P003", nombre: "Bolígrafo azul", stock_actual: 5,
+      stock_minimo: 12, faltante: 7, costo: 8, costo_reponer: 7464 }] });
+    expect(html).toContain(">$56.00</td>");
+    expect(html).toContain("$56.00");
+    expect(html).not.toContain("$7,464.00");
   });
 
   it("un nombre con HTML no rompe ni inyecta nada en el correo", () => {
