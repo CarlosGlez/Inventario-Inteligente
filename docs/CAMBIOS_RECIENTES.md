@@ -39,7 +39,7 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - Si la base impide borrar un proveedor por sus órdenes asociadas, la acción lo marca como inactivo en vez de fallar.
 - Los proveedores archivados aparecen en una sección separada y ya no se ofrecen al asignar nuevos productos.
 - Sin órdenes asociadas, el proveedor se elimina físicamente.
-- Un selector permite alternar entre activos y archivados. La tabla muestra contacto, plazo, compra mínima, estado y acciones para crear, editar, archivar/reactivar o eliminar.
+- Un selector permite alternar entre activos y archivados. La tabla muestra contacto, plazo, estado y acciones para crear, editar, archivar/reactivar o eliminar.
 
 ## Acciones y movimientos del inventario
 
@@ -60,3 +60,9 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - El formulario de alta ya no solicita código y la edición lo muestra como solo lectura. La base rechaza cambios directos al código.
 - En Excel, el código identifica productos existentes para actualizarlos; para las filas nuevas la base genera un código automático.
 - La migración `0015_codigos_producto_automaticos.sql` crea la secuencia y las protecciones de base de datos.
+
+## Proveedores sin compra mínima
+
+- El registro y directorio de proveedores ya no muestran ni escriben el monto de compra mínima; el valor heredado en la base se ignora.
+- Los nuevos borradores de orden ya no aumentan cantidades para alcanzar ese monto; se conservan plazo de entrega y mínimo de unidades por producto.
+- La migración `0016_ignorar_compra_minima_proveedor.sql` actualiza la generación de borradores. Las órdenes que ya existían no se modifican.

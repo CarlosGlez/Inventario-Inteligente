@@ -89,7 +89,7 @@ erDiagram
     text nombre
     text correo
     integer lead_time_dias
-    numeric minimo_compra
+    numeric minimo_compra (legado; ignorado por la aplicación)
   }
   PROVEEDOR_PRODUCTOS {
     bigint proveedor_id FK

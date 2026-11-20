@@ -587,7 +587,7 @@ begin
   assert (select motivo from movements where product_code='V45' and cantidad=2) = 'venta', 'T45: guarda motivo';
 end $$;
 
--- T46: cantidad incluye lead time y monto mínimo; recepción actualiza stock.
+-- T46: cantidad incluye lead time y mínimo por producto, no compra mínima del proveedor.
 do $$
 declare v_id bigint; v_proveedor bigint; v_alerta bigint; v_orden bigint; v_linea bigint;
 begin
@@ -599,12 +599,12 @@ begin
   assert crear_ordenes_desde_alerta(v_alerta)=1, 'T46: crea un borrador';
   select id into v_orden from ordenes_compra where alerta_id=v_alerta;
   select id into v_linea from orden_lineas where orden_id=v_orden;
-  assert (select cantidad from orden_lineas where id=v_linea)=17, 'T46: cantidad incluye lead time y compra mínima';
+  assert (select cantidad from orden_lineas where id=v_linea)=12, 'T46: ignora compra mínima del proveedor';
   perform recibir_linea_orden(v_linea,5);
   assert (select stock_actual from products where id=v_id)=7, 'T46: recepción parcial actualiza stock';
   assert (select estado from ordenes_compra where id=v_orden)='recibida parcial', 'T46: marca recepción parcial';
-  perform recibir_linea_orden(v_linea,12);
-  assert (select stock_actual from products where id=v_id)=19, 'T46: recepción restante actualiza stock';
+  perform recibir_linea_orden(v_linea,7);
+  assert (select stock_actual from products where id=v_id)=14, 'T46: recepción restante actualiza stock';
   assert (select estado from ordenes_compra where id=v_orden)='recibida', 'T46: cierra al completar';
 end $$;
 
