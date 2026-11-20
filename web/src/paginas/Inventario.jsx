@@ -13,6 +13,7 @@ import { crearExcel, descargar, leerExcel, revisarArchivo } from "../lib/excel.j
 import { conPronostico, prioridadReabasto } from "../lib/pronostico.js";
 import { pronosticoProducto } from "../lib/pronostico-avanzado.js";
 import { usePerfil } from "../lib/perfil.jsx";
+import { categoriasUnicas } from "../lib/categorias.js";
 
 const dos = (n) => String(n).padStart(2, "0");
 
@@ -54,10 +55,7 @@ export default function Inventario() {
     });
   }, [datos]);
   const prioridad = useMemo(() => prioridadReabasto(productos), [productos]);
-  const categorias = useMemo(
-    () => [...new Set(productos.map((p) => p.categoria))].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
-    [productos],
-  );
+  const categorias = useMemo(() => categoriasUnicas(productos.map((p) => p.categoria)), [productos]);
 
   // Ejecuta una acción, muestra el resultado y recarga la lista.
   // Devuelve true si salió bien (los formularios lo usan para limpiarse).

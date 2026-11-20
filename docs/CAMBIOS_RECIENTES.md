@@ -22,6 +22,12 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - Requiere aceptar una confirmación con el número de productos y escribir `ELIMINAR` en el segundo paso.
 - La operación se ejecuta como una sola petición y muestra cuántos productos eliminó; movimientos y snapshots de órdenes permanecen.
 
+## Categorías al registrar productos
+
+- El alta permite elegir una categoría ya usada o seleccionar “Crear una categoría nueva” y escribirla.
+- Las categorías siguen derivándose de los productos, sin tabla ni dependencia adicional.
+- Se normalizan por espacios, mayúsculas y acentos para reutilizar una categoría existente cuando el texto equivale.
+
 ## Eliminación de proveedores
 
 - La lista de proveedores muestra la acción de borrar solo a administradores y pide confirmación antes de proceder.

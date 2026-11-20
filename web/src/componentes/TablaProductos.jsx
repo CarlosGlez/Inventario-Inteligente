@@ -163,6 +163,7 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
           </tbody>
         </table>
       </div>
+      <datalist id="categorias">{categorias.map((c) => <option key={c} value={c} />)}</datalist>
       {visibles.length === 0 && <p className="no-results">Ningún producto coincide con los filtros.</p>}
     </section>
   );
