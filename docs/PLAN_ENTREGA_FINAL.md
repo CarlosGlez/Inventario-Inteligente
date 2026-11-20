@@ -2,112 +2,137 @@
 
 **Actualizado:** 2026-11-20  
 **Rama base del equipo:** `main` de `Galoforito/Inventario-Inteligente`  
-**Propósito:** fuente de verdad para que integrantes e IAs continúen el trabajo sin repetir funciones ya hechas ni mezclar cambios del repositorio original de Carlosglez.
+**Propósito:** fuente de verdad para que integrantes e IAs continúen el trabajo en colaboración sin repetir funciones ya hechas ni mezclar cambios del repositorio original de Carlosglez.
 
-Lee este documento junto con `README.md` y `docs/ARQUITECTURA.md` antes de modificar el proyecto. Los estados describen el código del repositorio; una migración local no demuestra que ya esté aplicada en Supabase.
+Lee este documento junto con `README.md` y `docs/ARQUITECTURA.md` antes de modificar el proyecto. Este archivo consolida lo implementado y los requisitos acordados por el equipo. Las decisiones aún abiertas están al final; no inventes su comportamiento.
 
 ## Reglas de colaboración
 
-- `main` del fork es la base del equipo. No trabajar directamente en `main`.
-- Crear una rama corta por cambio: `feat/...`, `fix/...` o `docs/...`; abrir un pull request y actualizar este plan al integrar.
-- Mantener una sola migración nueva por cambio de esquema y conservar el orden numérico existente (`0018_...`, `0019_...`). No editar migraciones ya aplicadas.
-- Antes de aplicar una migración remota, revisar el historial de Supabase. El equipo debe coordinar una sola persona para aplicarlas.
-- No enviar correos reales durante desarrollo o demo. Mantener modo simulado salvo prueba privada autorizada.
-- No incluir secretos ni archivos `.env*` en commits.
+- `main` del fork es la base del equipo. Crear una rama corta `feat/...`, `fix/...` o `docs/...` para cada cambio; integrar mediante pull request.
+- Mantener una migración nueva por cambio de esquema y conservar la secuencia actual. No editar migraciones aplicadas.
+- Antes de aplicar una migración remota, revisar el historial de Supabase y coordinar una sola persona para aplicarla.
+- No enviar correos reales durante desarrollo o demo sin configurar y verificar el servicio de correo. No incluir secretos ni archivos `.env*` en commits.
 - Marcar algo como **cubierto** solo cuando el comportamiento está implementado y la verificación pertinente se ejecutó. Distinguir pruebas locales de despliegue real.
+- Reutilizar los datos y cálculos expuestos por la base y la lógica de pronóstico existente. No mantener cálculos duplicados en el Dashboard.
 
-## Requisitos consolidados y estado actual
+## Alcance consolidado y estado
 
-| Área consolidada | Estado | Situación actual y trabajo restante |
+| Área | Estado | Requisito acordado / siguiente trabajo |
 |---|---|---|
-| Compra mínima del proveedor | **Cubierto** | El formulario y directorio ya no muestran ni envían `minimo_compra`; la generación de órdenes deja de ajustar cantidades por ese monto. La columna heredada permanece en la base, pero la aplicación la ignora. La migración `0016_ignorar_compra_minima_proveedor.sql` debe constar aplicada en el entorno destino. |
-| Una orden pertenece a un proveedor | **Cubierto** | `ordenes_compra` tiene un solo `proveedor_id`; sus líneas pueden contener varios productos de ese proveedor. Las órdenes generadas desde alertas se separan por proveedor. No se necesita otra funcionalidad para este requisito. |
-| Código SKU incremental e inmutable | **Cubierto** | El formulario no pide código; la base lo asigna con secuencia y rechaza modificaciones. Los códigos existentes se conservaron. El usuario confirmó aplicada la migración `0015_codigos_producto_automaticos.sql`. |
-| Elegir categoría existente o crear una | **Cubierto con límite conocido** | El alta reutiliza categorías existentes o permite crear una al registrar producto. La lista se deriva de las categorías usadas por productos; no es una tabla independiente y una categoría desaparece de la lista si ya ningún producto la usa. La retroalimentación marcó este punto como listo. |
-| Alta y movimientos de inventario | **Parcial** | Alta, validaciones, entradas y salidas están implementadas; los motivos se adaptan a entrada/salida y el código es de solo lectura. “Perfeccionar la alta y salidas” no especifica más criterios: no rehacer lo existente hasta concretar qué falta. |
-| Pronóstico, temporalidades y claridad visual | **Parcial** | Hay ventas clasificadas, consumo reciente, modelos de pronóstico y una gráfica pequeña en la tabla. Se requiere una presentación más legible y definir la ventana temporal solicitada. La evaluación cuantitativa contra el baseline todavía debe ejecutarse y documentarse. Las salidas históricas sin motivo de venta no se reinterpretan automáticamente. |
-| Métricas de ventas y días de inventario | **Parcial** | La base expone ventas por día hasta 365 días y hay consumo de 30 días; la interfaz no ofrece selector de 30/60/90 días ni presenta juntas las unidades vendidas, promedio diario y cobertura de stock. Aclarar si 30–90 días es la ventana de análisis o el horizonte de pronóstico. |
-| Importar historial de movimientos | **Pendiente** | Excel actualmente importa/actualiza productos; no hay importación de movimientos. Definir columnas, deduplicación y si importar movimientos históricos también debe modificar el stock actual. |
-| Dashboard por categorías y abastecimiento | **Pendiente** | No existe pestaña Dashboard. Hace falta definir qué significa “más abasto” y cómo medir “requiere mejor resolución”. Propuesta inicial: stock en unidades y valor, cobertura en días, productos agotados/bajo mínimo y faltante/sugerencia, agrupados por categoría. |
-| Proveedor asignado a cada producto | **Parcial** | Existe `proveedor_productos` y Compras puede vincular productos desde Proveedores. El inventario no muestra qué productos carecen de proveedor ni permite asignarlo ahí; un producto puede quedar sin proveedor activo. La orden rápida falla con un mensaje si no encuentra proveedor activo. |
-| Reabastecimiento automático a partir de movimientos | **Parcial** | El scheduler detecta stock bajo y crea alertas. Compras/admin puede crear un borrador desde una alerta o usar **Armar orden** en un producto agotado. Ninguna de esas acciones crea automáticamente un borrador cuando un movimiento cruza el umbral; tampoco envía órdenes automáticamente. Definir el evento y el nivel de automatización. |
-| Enviar orden antes de recibir | **Pendiente; error funcional conocido** | La interfaz ofrece “Registrar recepción” incluso en borradores y `recibir_linea_orden` solo rechaza canceladas, por lo que el backend permite recibir antes de enviar. Restringir UI y RPC a órdenes enviadas/confirmadas y definir cómo cuenta el estado simulado de demo. |
-| Alertas por correo | **Parcial** | El correo de alerta de inventario usa el destinatario global `ALERT_TO`; el correo de una orden se dirige al correo del proveedor cuando Compras/admin la envía. Sin SMTP activo, los envíos pueden quedar simulados. Aclarar si una alerta de stock debe llegar al personal interno, al proveedor del producto o a ambos. |
-| Integración con Google Sheets o Teams | **Pendiente/por confirmar alcance** | No hay integración implementada en el código actual. La lista original proponía una integración, pero no identifica cuál ni qué flujo/datos debe sincronizarse. |
-| Roles y cuenta/demo | **Parcial** | Existen roles, restricciones de UI/RLS/RPC y script de seed demo. No está verificado en el proyecto remoto el recorrido completo de los roles ni la carga del seed; las pruebas SQL de roles cubren principalmente denegaciones de Consulta. |
-| PDF de órdenes | **Parcial** | La acción actual abre una página HTML para imprimir/guardar como PDF. Mejorar diseño y contenido; acordar qué campos y elementos de marca hacen falta. |
-| Validación y acotamiento | **Proceso transversal pendiente** | Hay validaciones de UI, SQL/RLS/RPC y pruebas, pero falta una matriz final de aceptación por rol y comprobarla contra el Supabase desplegado. La suite web ejecutada anteriormente dio 164/166: dos expectativas antiguas aún buscan el campo editable `Código` y el valor interno `sin_clasificar`. El build pasó en esa ejecución. No se ejecutaron pruebas SQL remotas. Repetir y registrar los resultados vigentes antes de la entrega. |
+| Compra mínima del proveedor | **Cubierto** | No forma parte del flujo actual. La aplicación ignora el campo heredado y no debe volver a presentarlo como requisito. |
+| Órdenes por proveedor | **Cubierto** | Cada orden pertenece a un solo proveedor; sus líneas pueden incluir varios productos de ese proveedor. Al armar órdenes desde alertas, agrupar por proveedor. Nunca mezclar proveedores en una orden. |
+| SKU incremental e inmutable | **Cubierto** | El SKU lo genera la base y el formulario no permite editarlo. Migración `0015_codigos_producto_automaticos.sql` confirmada aplicada por el usuario. |
+| Categorías en productos y Excel | **Parcial; requiere resolver conflicto de esquema** | El repositorio ya tiene `products.categoria` y el alta permite usar/crear una categoría. Añadir persistencia de catálogo independiente, mostrar/editar categoría en el producto e incluirla como columna opcional en importación/exportación y en el Excel de ejemplo. Los archivos anteriores sin esa columna deben seguir funcionando; si falta, usar `Sin categoría`. Ver prerrequisito y pregunta al final. |
+| Alta y movimientos | **Cubierto para el alcance especificado** | Ya hay entradas/salidas, motivos ajustados al tipo de movimiento, validaciones y SKU no editable. La solicitud general de “perfeccionar alta y salidas” se retira como tarea independiente; no se inventan cambios adicionales. |
+| Proveedor por producto | **Pendiente** | Cada producto tendrá exactamente un proveedor activo y será obligatorio asignarlo al registrar el producto. Se podrá asignar desde el formulario/sección de Inventario y desde Proveedores, en la opción “Asignar producto”. Definir comportamiento al archivar el único proveedor asignado antes de implementar. |
+| Reabastecimiento desde alertas | **Parcial** | El flujo manual actual es el correcto: no crear órdenes automáticamente por movimientos. Compras/admin puede armar órdenes desde productos/alertas y deben agruparse por proveedor. Añadir o asegurar un botón en la alerta de stock que permita pasar al flujo de creación/envío de orden. |
+| Envío y recepción de órdenes | **Pendiente; restricción funcional** | Solo permitir registrar recepción después de que la orden esté confirmada. Una orden cuyo envío se simula en demo cuenta como enviada, pero aún requiere confirmación antes de recibir. Aplicar la regla tanto en interfaz como en RPC/base de datos. Aclarar quién realiza la confirmación. |
+| Correo de alertas | **Pendiente** | El aviso de stock se envía a personal interno y debe incluir una acción/botón para iniciar el flujo de orden del producto. Se requiere correo real; la simulación no cumple la aceptación final. Mantener distinto el correo de alerta del correo de envío de la orden. |
+| Historial y pronóstico | **Parcial** | Añadir selector de historial 30/60/90 días para unidades vendidas y promedio diario. El promedio divide entre todos los días calendario del periodo, incluidos los días sin ventas. El pronóstico se basa solo en ventas. Añadir horizonte de pronóstico 7/30/90 días en Dashboard. |
+| Visual actual de pronóstico en Inventario | **Retirar/mover** | Eliminar el visual compacto actual de pronóstico en la tabla de Inventario. La presentación estadística y la gráfica de pronóstico vivirán en Dashboard, según el diseño especificado abajo. |
+| Importación de movimientos | **Pendiente** | Añadir importación mediante el mismo tipo de archivo/flujo de Excel que productos, con columnas propias de movimiento. Recalcular stock al importar y rechazar duplicados al cargar de nuevo el mismo archivo. Propuesta de columnas: SKU, fecha, tipo (entrada/salida), motivo y cantidad. |
+| Dashboard de inventario | **Pendiente; especificación acordada** | Añadir una pestaña Dashboard en React + Vite + Supabase. Reutilizar pronósticos y datos de la base, sin duplicar lógica. Seguir fórmulas, reglas y orden de contenido de la sección siguiente. |
+| PDF de órdenes | **Pendiente; diseño acordado, datos de negocio por confirmar** | Convertir el PDF actual basado en impresión HTML en una orden profesional. Incluir los campos propuestos y la información comercial disponible; no inventar datos fiscales, moneda ni términos que el negocio no haya proporcionado. |
+| Google Sheets / Teams | **Fuera de alcance** | Sheets ya no es requisito. No añadir integración con Sheets o Teams como parte de esta entrega. |
+| Roles, permisos y aceptación | **Parcial** | Redactar y validar una matriz según roles y permisos existentes en el repositorio. `consulta` solo lectura; `compras` y `admin` pueden crear/gestionar órdenes; `almacén` opera movimientos y recepción según permisos actuales. Revisar rutas, UI, RLS y RPC; resolver discrepancia de visibilidad de órdenes para Consulta indicada al final. |
+
+## Prerrequisito y esquema de categorías
+
+La instrucción original pide `0011_categorias.sql` y una columna `category text not null default 'Sin categoría'`. El repositorio contradice esa premisa: `products.categoria` ya existe y `0011` ya está ocupada por `0011_costos_alertas_utf8.sql`; la secuencia llega hasta `0017`. No crear una columna duplicada en inglés ni reutilizar el número de migración.
+
+Propuesta compatible con el esquema actual: conservar `products.categoria` como la categoría asignada al producto, crear una tabla de catálogo persistente en una migración nueva `0018_categorias.sql`, sembrarla con las categorías existentes e incluir `Sin categoría`. El catálogo debe conservar categorías aunque temporalmente ningún producto las use. Mantener compatibilidad con hojas Excel antiguas; categoría será opcional al importar.
+
+Esta propuesta requiere que el usuario confirme si satisface el prerrequisito pretendido. Véase la pregunta 1.
+
+## Especificación del Dashboard
+
+### Definiciones y cálculos
+
+- **Abasto/cobertura:** días de cobertura = stock ÷ consumo diario. El consumo diario para cobertura es el promedio de ventas de los últimos 30 días calendario.
+- **Valor del inventario:** stock × costo del producto.
+- **Cobertura por categoría:** suma de stock de la categoría ÷ suma del consumo diario de sus productos. No promediar coberturas individuales.
+- **Consumo cero:** mostrar “Sin rotación”; excluir de los cálculos de cobertura y sumar el valor de su stock por separado como valor inmovilizado.
+- **Clasificación del producto, usando la primera regla aplicable:**
+  1. **Crítico (rojo):** stock = 0 o cobertura < 7 días.
+  2. **Atención (ámbar):** bajo mínimo o cobertura entre 7 y 14 días inclusive.
+  3. **Exceso (azul):** cobertura > 90 días.
+  4. **Saludable (verde):** cualquier otro caso con consumo distinto de cero.
+- **Prioridad dentro de cada color:** costo del faltante = cantidad sugerida de compra × costo.
+- **Categoría que requiere atención:** tiene al menos un producto crítico o más de 25 % de sus productos en ámbar/rojo.
+- El selector de historial muestra periodos 30/60/90. El pronóstico tiene un selector de horizonte 7/30/90. La definición de cobertura de abasto permanece basada en los últimos 30 días.
+
+### Contenido, de arriba abajo
+
+1. Tarjetas: productos agotados, productos bajo mínimo, valor total del inventario y costo total del faltante.
+2. Barras horizontales de cobertura por categoría, con estado legible además del color. Al seleccionar una barra se filtra todo el Dashboard.
+3. Tabla “Requiere atención”: producto, categoría, stock, mínimo, días de cobertura, fecha estimada de agotamiento, cantidad sugerida, costo del faltante, proveedor y botón de orden de compra.
+4. Pronóstico del producto seleccionado: ventas reales, estimación, banda de confianza, fecha estimada de agotamiento marcada y selector de horizonte 7/30/90 días.
+5. Distribución del valor del inventario por categoría.
+
+### Reglas de interfaz y permisos
+
+- `consulta` solo ve. `compras` y `admin` pueden usar el botón de orden.
+- Mostrar estados vacíos comprensibles para falta de ventas, falta de categoría y falta de proveedor.
+- En celular, apilar tarjetas y presentar la tabla como tarjetas.
+- No indicar estado solo mediante color: incluir etiqueta o icono con texto accesible.
+- Los números deben coincidir con los que muestra Inventario para las mismas entidades y periodos.
+- Pruebas unitarias requeridas para consumo cero, categoría vacía, stock cero y redondeo de cobertura.
+
+## Importación de movimientos
+
+Reutilizar el formato de archivo Excel y el flujo de carga/validación de la importación de productos, con una plantilla/hoja de movimientos adecuada a sus datos. Columnas propuestas: `codigo` (SKU), `fecha`, `tipo`, `motivo`, `cantidad`. La importación debe validar producto, fecha, tipo, motivo y cantidad antes de aplicar filas; al aceptarlas, registrar movimientos y actualizar stock una sola vez. Una carga repetida del mismo archivo debe detectar duplicados y no insertar ni sumar stock de nuevo. Acordar si la deduplicación aplica a todo el archivo o fila por fila y qué hacer con una carga parcialmente duplicada.
+
+## Proveedor y ciclo de la orden
+
+- Para registrar un producto se debe elegir un proveedor activo. Debe ser posible asignarlo/editarlos desde Inventario y desde Proveedores → Asignar producto.
+- Un producto solo tiene un proveedor activo asignado. No archivar/borrar ese proveedor dejando el producto sin uno; la regla concreta de reasignación está pendiente.
+- Las órdenes continúan siendo manuales. Un aviso de stock debe permitir iniciar la creación de una orden; los borradores se agrupan por proveedor y nunca combinan líneas de proveedores distintos.
+- Una orden no puede recibirse hasta que esté confirmada. Un envío simulado de demo cuenta como enviado, pero no como confirmación. La base de datos debe impedir recepción prematura, aunque se invoque la RPC directamente.
+- El correo de alerta va al personal interno y requiere entrega real en aceptación. Debe proporcionar una acción para pasar a la orden. El correo de envío de orden al proveedor es un flujo separado.
+
+## PDF de orden de compra
+
+Diseño profesional con jerarquía visual, tipografía legible, tablas alineadas, importes y totales claros, paginación y formato apto para impresión. Incluir, cuando el sistema disponga del dato: identidad/logo del negocio, folio y fechas, datos del proveedor, productos/SKU, cantidades, costo unitario, subtotales, total, responsable, estado y espacio para autorización y recepción/firmas. El total debe coincidir con la orden. No inventar RFC, impuestos, moneda, dirección, condiciones de pago ni fechas de entrega. Solicitar esos datos antes de presentarlos como contenido requerido.
+
+## Roles y validación de entrega
+
+Usar el modelo existente como base y verificar cada operación tanto en la interfaz como en RLS/RPC:
+
+| Rol | Alcance a validar |
+|---|---|
+| `admin` | Administración completa, usuarios, catálogo, proveedores, productos, movimientos y ciclo de órdenes. |
+| `compras` | Proveedores y asignación producto-proveedor; creación y envío de órdenes; confirmación y seguimiento de recepción conforme al flujo definido. |
+| `almacen` | Consulta operativa de inventario y registro de entradas/salidas; recepción solo en estado permitido. No administrar usuarios ni enviar órdenes salvo que las políticas vigentes lo permitan expresamente. |
+| `consulta` | Lectura únicamente; sin mutaciones de productos, proveedores, movimientos u órdenes. Verificar específicamente si puede consultar la pestaña/listado de órdenes, pues la ruta actual podría ocultarla aunque exista lectura en políticas. |
+
+La aceptación debe documentar: recorrido de cada rol, restricciones denegadas en UI y backend, importación y deduplicación, cálculos de dashboard frente a Inventario, ciclo de orden (borrador → envío → confirmación → recepción), migraciones remotas aplicadas y correo SMTP real aceptado por el proveedor de correo. Guardar evidencia sin secretos. Un `message_id` o respuesta SMTP acredita aceptación por el servidor, no necesariamente que el destinatario lo haya leído.
+
+La cuenta/datos demo deben verificarse con el seed existente y documentarse para el entorno de entrega; no asumir que el seed local está cargado en Supabase remoto.
 
 ## Mapa de código para continuar
 
 - Inventario, alta, sugerencias y roles: `web/src/paginas/Inventario.jsx`, `web/src/componentes/FormularioProducto.jsx`, `web/src/componentes/Prioridad.jsx`.
 - Pronóstico/ventas: `web/src/lib/pronostico.js`, `web/src/lib/pronostico-avanzado.js`, `web/src/lib/api.js`; vistas SQL en `supabase/migrations/0002_funciones.sql` y `0007_ventas_pronostico.sql`.
-- Proveedor por producto: `web/src/paginas/Proveedores.jsx`, `proveedor_productos` en `supabase/migrations/0008_proveedores_compras_roles.sql`.
-- Órdenes, PDF y recepción: `web/src/paginas/Ordenes.jsx`, `supabase/functions/revisar-inventario/index.ts`, `supabase/migrations/0012_productos_borrados_ordenes.sql`, `0017_orden_rapida_producto_agotado.sql`.
-- Alerta SMTP: `supabase/functions/revisar-inventario/{correo,entrega,index}.ts` y `docs/CONFIGURAR_CORREO.md`.
-- Rutas y roles visuales: `web/src/App.jsx`, `web/src/componentes/Encabezado.jsx`; políticas y RPC: migraciones `0008` en adelante.
-- Importación actual de productos: `web/src/componentes/ImportarExcel.jsx`, `web/src/lib/excel.js`, `web/src/lib/validar.js`; no es importador de movimientos.
+- Proveedor por producto: `web/src/paginas/Proveedores.jsx`, tabla `proveedor_productos` en `supabase/migrations/0008_proveedores_compras_roles.sql`.
+- Órdenes, PDF y recepción: `web/src/paginas/Ordenes.jsx`, `supabase/functions/revisar-inventario/index.ts`, migraciones de órdenes existentes hasta `0017`.
+- Alertas SMTP: `supabase/functions/revisar-inventario/{correo,entrega,index}.ts` y `docs/CONFIGURAR_CORREO.md`.
+- Rutas/roles: `web/src/App.jsx`, `web/src/componentes/Encabezado.jsx`; políticas y RPC en migraciones `0008` en adelante.
+- Excel productos: `web/src/componentes/ImportarExcel.jsx`, `web/src/lib/excel.js`, `web/src/lib/validar.js`; el importador actual no cubre movimientos.
 
-## Trabajo propuesto por etapas
+## Preguntas pendientes para cerrar antes de implementar
 
-### 1. Corregir el ciclo de vida de órdenes
+1. **Categorías/esquema:** ¿confirmas la propuesta de conservar `products.categoria`, crear un catálogo persistente en `0018_categorias.sql` y no crear `category`/`0011_categorias.sql` duplicados? El esquema ya tiene `categoria` y la migración `0011` ya existe.
+2. **Proveedor único y archivo:** si se intenta archivar el único proveedor activo de un producto, ¿se debe bloquear el archivo hasta reasignar proveedor, o permitirlo y dejar el producto pendiente? Propuesta: bloquear hasta reasignar.
+3. **Confirmación de orden:** ¿quién confirma que el proveedor aceptó la orden: Compras/admin dentro de la app o el propio proveedor mediante un enlace/portal? Propuesta para el alcance actual: Compras/admin registra manualmente la confirmación; sin portal externo.
+4. **Alerta → orden:** ¿el botón del correo debe abrir la app en la alerta/producto para revisar y crear el borrador, o crear el borrador directamente? Propuesta: enlace autenticado a la alerta/producto; la persona revisa y confirma antes de crear/enviar.
+5. **Importación repetida/parcial:** si un archivo incluye filas ya importadas junto con movimientos nuevos, ¿rechazar todo el archivo o ignorar las filas duplicadas y cargar las nuevas? Propuesta: importación idempotente por fila, con resumen de duplicadas y nuevas antes de confirmar.
+6. **“Sin rotación” en semáforo:** para stock positivo y consumo cero, ¿debe aparecer como estado neutro separado (sin incluir en exceso ni atención) y solo sumar su valor inmovilizado? Propuesta: sí, como estado aparte.
+7. **PDF/datos comerciales:** ¿qué nombre/logo, moneda, datos fiscales, impuestos, dirección, condiciones de pago y entrega deben imprimirse? Hasta contar con esos datos, usar solo información existente y no inventar campos.
+8. **Consulta y órdenes:** ¿el rol `consulta` debe ver el listado/detalle de órdenes en modo lectura? La matriz general dice lectura, pero hay que comprobar la ruta actual, que podría bloquear esa sección.
 
-- No permitir registrar recepción mientras la orden está en `borrador`.
-- Enforzar la misma regla en `recibir_linea_orden`, no solo ocultar el botón.
-- Definir transiciones: `borrador → enviada → recibida parcial → recibida`; decidir si `confirmada` es un paso manual separado.
-- Acordar si una orden en modo simulado permite probar recepciones sin correo real.
-- Aceptación: ningún rol ni llamada RPC puede aumentar stock antes del estado permitido; una orden cancelada sigue bloqueada.
+## Estado de migraciones y verificación
 
-### 2. Hacer visible y gestionable el proveedor por producto
-
-- Mostrar en Inventario un estado claro: proveedor activo asignado o falta asignación.
-- Permitir a Compras/admin vincular proveedor desde esa pantalla, con datos por producto (costo cotizado y mínimo de unidades si continúa siendo necesario).
-- Definir cómo se migra/repara el catálogo existente y qué ocurre al archivar el único proveedor asignado.
-- Aceptación: Compras puede identificar todos los productos sin proveedor activo y resolverlos; el rol Almacén conserva los permisos acordados.
-
-### 3. Definir y construir el reabastecimiento automático
-
-- Reutilizar el umbral de stock/alerta ya existente y evitar órdenes duplicadas ante movimientos o revisiones repetidas.
-- Propuesta segura: crear automáticamente **borradores**, uno por proveedor, y dejar el envío sujeto a aprobación de Compras. No enviar correos de compra automáticamente sin autorización explícita.
-- Determinar qué motivos cuentan como demanda: probablemente solo `salida/venta`, no merma ni ajuste; validar con el usuario.
-- Aceptación: al cruzar el umbral se genera una orden por proveedor con productos asociados, se conserva idempotencia y se puede enviar desde la sección Órdenes.
-
-### 4. Importar movimientos y completar análisis de 30–90 días
-
-- Proponer plantilla con código SKU, fecha/hora, entrada/salida, motivo y cantidad; validar códigos, rangos y filas duplicadas.
-- Decidir si la importación inserta historial y recalcula stock, o importa solo historial sin tocar el stock actual. No implementar hasta resolverlo.
-- Añadir selector de 30, 60 o 90 días con unidades vendidas, promedio diario y días de cobertura por producto.
-- Definir promedio diario sobre todos los días calendario (incluidos días sin venta) o solo días con venta.
-- Aceptación: ventas se distinguen de merma/ajuste; al importar de nuevo el mismo archivo no se duplican movimientos ni se altera stock dos veces.
-
-### 5. Dashboard de abastecimiento por categoría y pronóstico visual
-
-- Crear pestaña Dashboard con filtros de categoría y periodo.
-- Métricas propuestas por categoría: productos, unidades y valor en stock; cobertura promedio/mediana; productos agotados o bajo mínimo; unidades/costo sugerido para reponer.
-- Mostrar ventas reales y pronóstico en una gráfica temporal, con horizonte y banda de incertidumbre claramente rotulados; separar dato observado de estimación.
-- Aceptación: se puede comparar qué categorías tienen más cobertura y cuáles concentran faltantes, y navegar desde el resumen al producto afectado.
-
-### 6. Mejorar PDF, alta/salidas y cierre de calidad
-
-- Acordar contenido del PDF: folio, fecha, proveedor/datos de contacto, partidas, cantidad, costo unitario, subtotal, total y espacio de autorización/recepción si se requiere.
-- Convertir “perfeccionar la alta y salidas” en cambios observables; evitar duplicar SKU automático, categoría y motivos por tipo, que ya existen.
-- Mantener un checklist de roles: admin, Compras, Almacén y Consulta; probar permisos tanto en interfaz como en RPC/RLS.
-- Actualizar README, arquitectura, mapa de requisitos y resultados medidos; el listado de migraciones en README actualmente no enumera hasta `0017`.
-
-## Preguntas para precisar antes de implementar lo ambiguo
-
-1. **Automatización:** ¿al bajar del mínimo se debe crear un borrador automáticamente y pedir aprobación antes de enviar, o enviar la orden automáticamente al proveedor?
-2. **Motivos que activan reabastecimiento:** ¿solo una venta, cualquier salida o cualquier movimiento que deje el stock bajo?
-3. **Proveedor obligatorio:** ¿cada producto necesita exactamente un proveedor activo o puede tener varios y elegir el de menor costo? ¿Debe impedirse guardar/importar un producto sin proveedor?
-4. **Correo de alerta:** ¿el aviso de stock bajo va a `ALERT_TO`, al proveedor asignado, o a ambos?
-5. **Ventana 30–90 días:** ¿quieres un selector de ventana de ventas de 30/60/90 días, un pronóstico de hasta 90 días, o ambos?
-6. **Importar movimientos:** ¿al importar el historial se debe cambiar el stock actual? ¿Qué formato/columnas tiene el archivo de origen?
-7. **Dashboard:** ¿“más abasto” significa más unidades, más valor en dinero o más días de cobertura? Para “mejor resolución”, ¿qué indicador debe ordenar las categorías: productos agotados, faltante, costo sugerido u otro?
-8. **PDF y alta/salidas:** ¿qué campos/elementos faltan en el PDF y qué parte concreta del alta o de registrar entradas/salidas debe cambiar?
-9. **Integración:** ¿la entrega requiere Google Sheets o Teams? ¿Qué datos deben enviarse/consultarse y en qué momento?
-
-## Estado de migraciones y verificación remota
-
-- El usuario confirmó que `0015_codigos_producto_automaticos.sql` quedó aplicada.
-- La aplicación de `0016_ignorar_compra_minima_proveedor.sql` y `0017_orden_rapida_producto_agotado.sql` no está confirmada en este plan. Verificar la tabla de historial de migraciones del proyecto antes de asumir que las RPC existen.
-- Los cambios de esquema futuros se hacen con migraciones en ramas, se revisan y se aplican de forma coordinada; actualizar este apartado al comprobar el entorno.
+- El usuario confirmó aplicadas las migraciones `0015_codigos_producto_automaticos.sql`, `0016_ignorar_compra_minima_proveedor.sql` y `0017_orden_rapida_producto_agotado.sql`.
+- `0011_costos_alertas_utf8.sql` ya ocupa el nombre/secuencia `0011`; la nueva migración de catálogo, si se confirma, debe seguir la secuencia vigente (previsión `0018_categorias.sql`). Revisar el directorio y el historial remoto antes de crear/aplicar.
+- La verificación web previa dio 164/166: dos expectativas antiguas buscaban el campo editable `Código` y el valor interno `sin_clasificar`; el build pasó en esa ejecución. Esto es evidencia histórica, no resultado vigente de la entrega.
+- No hay en este plan evidencia de ejecución de pruebas SQL remotas ni de correo real. Registrar resultados nuevos al completar cada etapa.
