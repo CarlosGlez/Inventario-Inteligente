@@ -47,3 +47,9 @@ Verificación registrada: `npm.cmd test` (166 pruebas) y `npm.cmd run build` com
 - El formulario de movimiento explica que una entrada suma stock y una salida lo resta, y describe los motivos de venta, merma, ajuste y otro.
 - Los motivos dependen del sentido: las entradas ofrecen compra/recepción, devolución, ajuste positivo u otro; las salidas ofrecen venta, merma, ajuste negativo u otro.
 - La migración `0014_motivos_movimiento_por_tipo.sql` permite guardar y validar esos motivos sin cambiar los movimientos históricos.
+
+## Filtros de órdenes de compra
+
+- Las órdenes se pueden filtrar por fechas, estado, proveedor, producto y rango de monto total.
+- Cada tarjeta muestra el monto final calculado con las cantidades y costos unitarios de sus líneas.
+- El ordenamiento permite fecha ascendente/descendente y monto ascendente/descendente; por defecto muestra primero la orden más reciente.
