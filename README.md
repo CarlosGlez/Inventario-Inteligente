@@ -1,6 +1,6 @@
 # Control inteligente de inventario y alertas de stock
 
-> Ampliación Equipo 4: consulta el [plan de trabajo](docs/PLAN_AMPLIACION.md), la [auditoría inicial](docs/AUDITORIA_INICIAL.md) y la [arquitectura](docs/ARQUITECTURA.md). Las funciones nuevas y sus resultados se documentarán aquí conforme se implementen y verifiquen.
+> Ampliación Equipo 4: consulta el [plan de trabajo](docs/PLAN_AMPLIACION.md), el [plan de entrega final y colaboración](docs/PLAN_ENTREGA_FINAL.md), la [auditoría inicial](docs/AUDITORIA_INICIAL.md) y la [arquitectura](docs/ARQUITECTURA.md). Las funciones nuevas y sus resultados se documentarán aquí conforme se implementen y verifiquen.
 
 Proyecto 2 · versión **React (Vite) + Supabase**.
 
