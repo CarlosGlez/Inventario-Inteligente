@@ -32,17 +32,38 @@ export function serieDiaria(observaciones, desde = null, hasta = new Date()) {
 const promedio = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
 
-// Misma definición que la regla heredada: total de salidas recientes dividido
-// por días desde la primera salida (mínimo un día), usando la ventana de 30d.
+/**
+ * Ventas de los últimos `dias` días calendario (hoy incluido), un elemento por
+ * día y con cero en los días sin ventas. Siempre devuelve exactamente `dias` filas.
+ */
+export function ventanaVentas(observaciones, dias, hoy = new Date()) {
+  const fin = Date.parse(`${claveDia(hoy)}T00:00:00Z`);
+  const inicio = fin - (dias - 1) * DIA;
+  const mapa = new Map();
+  for (const fila of observaciones ?? []) {
+    const cantidad = Number(fila.cantidad ?? fila.total);
+    const fecha = fila.fecha ?? fila.dia ?? fila.created_at;
+    if (!Number.isFinite(cantidad) || cantidad < 0 || !fecha || Number.isNaN(new Date(fecha).getTime())) continue;
+    const dia = claveDia(fecha);
+    mapa.set(dia, (mapa.get(dia) ?? 0) + cantidad);
+  }
+  return Array.from({ length: dias }, (_, i) => {
+    const fecha = new Date(inicio + i * DIA).toISOString().slice(0, 10);
+    return { fecha, cantidad: mapa.get(fecha) ?? 0 };
+  });
+}
+
+/** Unidades vendidas y promedio diario del periodo, dividiendo entre todos sus días. */
+export function resumenVentas(observaciones, dias, hoy = new Date()) {
+  const unidades = ventanaVentas(observaciones, dias, hoy).reduce((s, d) => s + d.cantidad, 0);
+  return { unidades, promedio_diario: unidades / dias };
+}
+
+// Promedio de los últimos 30 días calendario de la serie, incluidos los días
+// sin ventas (la serie termina hoy; si es más corta, los días faltantes cuentan como cero).
 export function baseline30(serie) {
-  const positivas = serie.filter((d) => d.cantidad > 0);
-  if (!positivas.length) return 0;
-  const fin = Date.parse(`${serie.at(-1).fecha}T00:00:00Z`);
-  const inicioVentana = fin - (VENTANA_BASELINE - 1) * DIA;
-  const recientes = positivas.filter((d) => Date.parse(`${d.fecha}T00:00:00Z`) >= inicioVentana);
-  if (!recientes.length) return 0;
-  const transcurridos = Math.max(1, (fin - Date.parse(`${recientes[0].fecha}T00:00:00Z`)) / DIA);
-  return recientes.reduce((s, d) => s + d.cantidad, 0) / transcurridos;
+  if (!serie.length) return 0;
+  return resumenVentas(serie, VENTANA_BASELINE, serie.at(-1).fecha).promedio_diario;
 }
 
 export function mediaPonderada(serie, ventana = 28) {

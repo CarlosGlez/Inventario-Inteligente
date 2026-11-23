@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/lib/supabase.js", () => ({ configurado: true, supabase: {} }));
 vi.mock("../src/lib/api.js", () => ({
   cargarInventario: vi.fn(),
+  cargarDashboard: vi.fn(),
+  crearOrdenRapida: vi.fn(),
   cargarResumen: vi.fn(),
   guardarProducto: vi.fn(),
   eliminarProducto: vi.fn(),
@@ -93,7 +95,7 @@ describe("Inventario", () => {
     const fila = screen.getByText("P003").closest("tr");
     expect(within(fila).getByText("$45.00")).toBeTruthy();              // costo unitario
     expect(within(fila).getByText("$315.00")).toBeTruthy();             // 7 × 45
-    expect(within(fila).getByText("Sin consumo")).toBeTruthy();
+    expect(within(fila).getByText("Sin rotación")).toBeTruthy();
     expect(fila.className).toContain("low-row");
   });
 
@@ -351,5 +353,76 @@ describe("navegación", () => {
     expect(await screen.findByRole("heading", { name: "Historial de alertas" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
     await waitFor(() => expect(api.cerrarSesion).toHaveBeenCalled());
+  });
+});
+
+describe("Dashboard", () => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const AGOTADO = { id: 3, codigo: "P010", nombre: "Engrapadora", categoria: "Oficina", stock_actual: 0, stock_minimo: 4, costo: 80 };
+  const datosDashboard = (cambios = {}) => ({
+    productos: [BAJO, SUFICIENTE, AGOTADO],
+    ventas: [{ product_code: "P003", fecha: hoy, cantidad: 30 }],
+    resumen: RESUMEN,
+    categorias: [],
+    relaciones: [{ product_id: 3, proveedor_id: 1, costo_unitario: 70, proveedores: { nombre: "Papelera del Centro", activo: true } }],
+    ...cambios,
+  });
+
+  it("muestra tarjetas, categorías y la tabla de atención", async () => {
+    api.cargarDashboard.mockResolvedValue(datosDashboard());
+    abrir("/dashboard");
+    const tarjetas = await screen.findByRole("region", { name: "Indicadores" });
+    expect(within(tarjetas).getByText("Productos agotados").nextSibling.textContent).toBe("1");
+    expect(within(tarjetas).getByText("Bajo el mínimo").nextSibling.textContent).toBe("2");
+    const tabla = screen.getByRole("heading", { name: "Requiere atención" }).closest("section");
+    expect(within(tabla).getAllByRole("row").slice(1).map((f) => within(f).getAllByRole("cell")[0].textContent))
+      .toEqual(["EngrapadoraP010", "Bolígrafo azulP003"]);
+    expect(within(tabla).getByText("Papelera del Centro")).toBeTruthy();
+    expect(within(tabla).getByText("Sin proveedor")).toBeTruthy();
+  });
+
+  it("Compras arma la orden de un agotado; con stock lleva a alertas", async () => {
+    api.obtenerPerfil.mockResolvedValue({ role: "compras", active: true });
+    api.cargarDashboard.mockResolvedValue(datosDashboard());
+    api.crearOrdenRapida.mockResolvedValue({ folio: "OC-1", proveedor: "Papelera del Centro", cantidad: 4 });
+    api.listarOrdenes.mockResolvedValue([]);
+    abrir("/dashboard");
+    fireEvent.click(await screen.findByRole("button", { name: "Armar orden" }));
+    await waitFor(() => expect(api.crearOrdenRapida).toHaveBeenCalledWith(3, 4));
+  });
+
+  it("Consulta solo ve: no hay botón de orden", async () => {
+    api.obtenerPerfil.mockResolvedValue({ role: "consulta", active: true });
+    api.cargarDashboard.mockResolvedValue(datosDashboard());
+    abrir("/dashboard");
+    await screen.findByRole("heading", { name: "Requiere atención" });
+    expect(screen.queryByRole("button", { name: "Armar orden" })).toBeNull();
+    expect(screen.getAllByText("Solo lectura").length).toBeGreaterThan(0);
+  });
+
+  it("seleccionar una categoría filtra el Dashboard y se puede quitar", async () => {
+    api.cargarDashboard.mockResolvedValue(datosDashboard());
+    abrir("/dashboard");
+    const cobertura = (await screen.findByRole("heading", { name: "Cobertura por categoría" })).closest("section");
+    fireEvent.click(within(cobertura).getByText("Papelería").closest("button"));
+    const tarjetas = screen.getByRole("region", { name: "Indicadores" });
+    expect(within(tarjetas).getByText("Productos agotados").nextSibling.textContent).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "Quitar filtro" }));
+    expect(within(tarjetas).getByText("Productos agotados").nextSibling.textContent).toBe("1");
+  });
+
+  it("los selectores cambian el periodo y el horizonte", async () => {
+    api.cargarDashboard.mockResolvedValue(datosDashboard());
+    abrir("/dashboard");
+    fireEvent.click(within(await screen.findByRole("group", { name: "Historial" })).getByRole("button", { name: "90 días" }));
+    expect(screen.getByText("Vendidas en 90 días")).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("group", { name: "Horizonte" })).getByRole("button", { name: "7 días" }));
+    expect(within(screen.getByRole("group", { name: "Horizonte" })).getByRole("button", { name: "7 días" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("sin productos muestra un estado vacío", async () => {
+    api.cargarDashboard.mockResolvedValue(datosDashboard({ productos: [], ventas: [] }));
+    abrir("/dashboard");
+    expect(await screen.findByText("No hay productos registrados. Da de alta productos en Inventario para ver el análisis.")).toBeTruthy();
   });
 });

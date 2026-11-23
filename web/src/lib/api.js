@@ -75,22 +75,31 @@ export async function consultarModoCorreo() {
 
 /** Lo que necesita la pantalla principal, en una sola ida a la base. */
 export async function cargarInventario() {
-  const [productos, consumo, ventas, resumen, categorias] = await Promise.all([
+  // El consumo se calcula con las ventas (ventas_diarias_365d), no con consumo_30d,
+  // que mezcla ventas con mermas y ajustes.
+  const [productos, ventas, resumen, categorias] = await Promise.all([
     supabase.from("products").select("*"),
-    supabase.from("consumo_30d").select("*"),
     cargarVentasAnuales(),
     supabase.from("resumen_inventario").select("*").single(),
     supabase.from("categorias").select("nombre").order("nombre"),
   ]);
   return {
     productos: revisar(productos).sort(porNombre),
-    consumo: revisar(consumo),
     ventas,
     resumen: revisar(resumen),
     // Si la migración 0018 aún no está aplicada, la tabla no existe: la pantalla
     // sigue funcionando con las categorías que ya usan los productos.
     categorias: categorias.error ? [] : categorias.data.map(({ nombre }) => nombre),
   };
+}
+
+/** Lo del Inventario más la relación producto-proveedor, para el Dashboard. */
+export async function cargarDashboard() {
+  const [inventario, relaciones] = await Promise.all([
+    cargarInventario(),
+    supabase.from("proveedor_productos").select("product_id, proveedor_id, costo_unitario, proveedores(nombre, activo)"),
+  ]);
+  return { ...inventario, relaciones: revisar(relaciones) };
 }
 
 /** Crea un producto (id = null) o edita uno existente. */

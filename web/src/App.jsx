@@ -4,6 +4,7 @@ import { alCambiarSesion, obtenerPerfil, obtenerSesion } from "./lib/api.js";
 import { PerfilProveedor } from "./lib/perfil.jsx";
 import { configurado } from "./lib/supabase.js";
 import Alertas from "./paginas/Alertas.jsx";
+import Dashboard from "./paginas/Dashboard.jsx";
 import Inventario from "./paginas/Inventario.jsx";
 import Login from "./paginas/Login.jsx";
 import Movimientos from "./paginas/Movimientos.jsx";
@@ -53,6 +54,7 @@ export default function App() {
     <PerfilProveedor value={perfil}>
       <Routes>
         <Route path="/" element={<Inventario />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/movimientos" element={<Movimientos />} />
         <Route path="/alertas" element={<Alertas />} />
         <Route path="/proveedores" element={perfil.role === "admin" || perfil.role === "compras" ? <Proveedores /> : <Navigate to="/" replace />} />

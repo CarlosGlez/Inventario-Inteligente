@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseline30, mediaPonderada, pronosticarEstacional, pronosticoProducto, seleccionarModelo, serieDiaria } from "../src/lib/pronostico-avanzado.js";
+import { baseline30, mediaPonderada, pronosticarEstacional, pronosticoProducto, resumenVentas, seleccionarModelo, serieDiaria, ventanaVentas } from "../src/lib/pronostico-avanzado.js";
 
 const fecha = (d) => new Date(Date.UTC(2025, 0, 1 + d)).toISOString().slice(0, 10);
 
@@ -16,9 +16,23 @@ describe("pronóstico avanzado", () => {
   it("calcula media ponderada con más peso a los datos recientes", () => {
     expect(mediaPonderada([{ cantidad: 0 }, { cantidad: 10 }])).toBeCloseTo(20 / 3);
   });
-  it("conserva el denominador heredado desde la primera salida de la ventana", () => {
+  it("el baseline divide entre 30 días calendario, incluidos los días sin ventas", () => {
     const s = serieDiaria([{ fecha: fecha(0), cantidad: 5 }, { fecha: fecha(2), cantidad: 4 }], fecha(0), fecha(2));
-    expect(baseline30(s)).toBe(4.5);
+    expect(baseline30(s)).toBeCloseTo(9 / 30);
+  });
+  it("la ventana de ventas tiene exactamente los días pedidos y rellena con cero", () => {
+    for (const dias of [30, 60, 90]) {
+      const v = ventanaVentas([{ fecha: fecha(99), cantidad: 4 }], dias, fecha(99));
+      expect(v).toHaveLength(dias);
+      expect(v.at(-1)).toEqual({ fecha: fecha(99), cantidad: 4 });
+      expect(v.filter((d) => d.cantidad === 0)).toHaveLength(dias - 1);
+    }
+  });
+  it("resume unidades y promedio del periodo seleccionado", () => {
+    const obs = [{ fecha: fecha(99), cantidad: 30 }, { fecha: fecha(50), cantidad: 30 }, { fecha: fecha(5), cantidad: 90 }];
+    expect(resumenVentas(obs, 30, fecha(99))).toEqual({ unidades: 30, promedio_diario: 1 });
+    expect(resumenVentas(obs, 60, fecha(99))).toEqual({ unidades: 60, promedio_diario: 1 });
+    expect(resumenVentas(obs, 90, fecha(99))).toEqual({ unidades: 60, promedio_diario: 60 / 90 });
   });
   it("degrada la estacionalidad con poco historial", () => {
     const s = [{ fecha: fecha(0), cantidad: 4 }, { fecha: fecha(1), cantidad: 8 }];

@@ -19,6 +19,7 @@ export default function Encabezado() {
           <button type="button" className="logout" onClick={() => cerrarSesion()}>Cerrar sesión</button>
           <nav aria-label="Navegación principal">
             <NavLink className={clase} to="/" end>Inventario</NavLink>
+            <NavLink className={clase} to="/dashboard">Dashboard</NavLink>
             <NavLink className={clase} to="/movimientos">Movimientos</NavLink>
             <NavLink className={clase} to="/alertas">Historial de alertas</NavLink>
             {(perfil.role === "admin" || perfil.role === "compras") && <NavLink className={clase} to="/proveedores">Proveedores</NavLink>}

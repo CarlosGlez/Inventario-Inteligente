@@ -93,7 +93,7 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
           <thead>
             <tr>
               <th>Código</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Costo unit.</th>
-              <th>Valor</th><th>Se agota en</th><th>Pronóstico</th><th>Estado</th>{(puedeEditar || puedeEliminar) && <th>Acciones</th>}
+              <th>Valor</th><th>Se agota en</th><th>Estado</th>{(puedeEditar || puedeEliminar) && <th>Acciones</th>}
             </tr>
           </thead>
           <tbody>
@@ -114,15 +114,6 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
                   <div>
                     <DiasRestantes producto={p} />
                     {p.consumo_diario !== null && <small className="sub">{p.consumo_diario} u./día</small>}
-                  </div>
-                </td>
-                <td data-etiqueta="Pronóstico">
-                  <div className="forecast-meta"><strong>{p.modelo_pronostico}</strong><small>{p.demanda_diaria_esperada} u./día · rango {p.intervalo.inferior.toFixed(1)}–{p.intervalo.superior.toFixed(1)} · confianza {p.confianza}</small>
-                    <svg viewBox="0 0 100 24" role="img" aria-label={`Historial y pronóstico de ${p.nombre}`} className="forecast-sparkline">
-                      <polyline fill="none" stroke="currentColor" strokeWidth="2" points={p.serie_historial.map((v, i) => `${i * 50 / Math.max(1, p.serie_historial.length - 1)},${23 - Math.min(20, v * 3)}`).join(" ")} />
-                      <polyline fill="none" stroke="#c08a2c" strokeWidth="2" strokeDasharray="3 2" points={p.serie_pronostico.map((d, i) => `${50 + i * 50 / Math.max(1, p.serie_pronostico.length - 1)},${23 - Math.min(20, d.cantidad * 3)}`).join(" ")} />
-                    </svg>
-                    <small>{p.fecha_agotamiento_estimada ? `Agotamiento: ${p.fecha_agotamiento_estimada}` : "Sin demanda de venta"}</small>
                   </div>
                 </td>
                 <td data-etiqueta="Estado"><Estado p={p} /></td>

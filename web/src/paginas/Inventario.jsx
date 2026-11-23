@@ -10,8 +10,7 @@ import {
 } from "../lib/api.js";
 import { avisoRevision } from "../lib/avisos.js";
 import { crearExcel, descargar, leerExcel, revisarArchivo } from "../lib/excel.js";
-import { conPronostico, prioridadReabasto } from "../lib/pronostico.js";
-import { pronosticoProducto } from "../lib/pronostico-avanzado.js";
+import { analizarProductos, prioridadReabasto } from "../lib/pronostico.js";
 import { usePerfil } from "../lib/perfil.jsx";
 import { categoriasUnicas } from "../lib/categorias.js";
 
@@ -22,7 +21,7 @@ export default function Inventario() {
   const perfil = usePerfil();
   const puedeEditar = perfil.role === "admin" || perfil.role === "almacen";
   const navegar = useNavigate();
-  const [datos, setDatos] = useState(null);       // { productos, consumo, resumen }
+  const [datos, setDatos] = useState(null);       // { productos, ventas, resumen, categorias }
   const [errorCarga, setErrorCarga] = useState(null);
   const [aviso, setAviso] = useState(null);
   const [ocupado, setOcupado] = useState(false);
@@ -38,22 +37,8 @@ export default function Inventario() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // El pronóstico se calcula aquí, con los datos que entregó la base.
-  const productos = useMemo(() => {
-    if (!datos) return [];
-    const baselines = conPronostico(datos.productos, datos.consumo);
-    return baselines.map((p) => {
-      const avanzado = pronosticoProducto(p, (datos.ventas ?? []).filter((v) => v.product_code === p.codigo), new Date(), 14, p.consumo_diario);
-      const diario = avanzado.demanda_diaria_esperada;
-      const dias = diario > 0 ? Math.floor(p.stock_actual / diario) : null;
-      const sugerido = Math.max(p.stock_minimo - p.stock_actual, Math.ceil(diario * 14) - p.stock_actual, 0);
-      return {
-        ...p, ...avanzado, consumo_diario: diario > 0 ? diario : null, dias_restantes: dias,
-        sugerido, costo_sugerido: Math.round(sugerido * Number(p.costo) * 100) / 100,
-        urgente: p.bajo || (dias !== null && dias <= 7),
-      };
-    });
-  }, [datos]);
+  // Cobertura y pronóstico: la misma función que usa el Dashboard.
+  const productos = useMemo(() => (datos ? analizarProductos(datos.productos, datos.ventas ?? []) : []), [datos]);
   const prioridad = useMemo(() => prioridadReabasto(productos), [productos]);
   // Catálogo persistente + categorías en uso, por si alguna aún no está en el catálogo.
   const categorias = useMemo(
@@ -155,7 +140,7 @@ export default function Inventario() {
       <div className="page-title">
         <div>
           <h2>Inventario</h2>
-          <p>Las salidas marcadas como venta alimentan la selección automática del pronóstico. Las salidas históricas sin clasificar permanecen en el baseline heredado.</p>
+          <p>"Se agota en" usa el promedio de ventas de los últimos 30 días, contando los días sin ventas. Las mermas y ajustes no cuentan como demanda. El análisis completo está en Dashboard.</p>
         </div>
       <div className="title-actions">
           <button type="button" className="button" disabled={ocupado} onClick={exportar}>Exportar a Excel</button>
