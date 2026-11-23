@@ -11,7 +11,8 @@ export default function ImportarExcel({ ocupado, onImportar }) {
     <section className="card">
       <h3>Importar desde Excel</h3>
       <p>
-        Columnas: <code>codigo, nombre, categoria, stock_actual, stock_minimo, costo</code>. Se revisa todo el archivo
+        Columnas: <code>codigo, nombre, categoria, stock_actual, stock_minimo, costo</code>. Categoría y costo son opcionales;
+        si falta categoría se usa <strong>Sin categoría</strong>. Se revisa todo el archivo
         antes de guardar. El código identifica productos existentes para actualizarlos; las filas nuevas reciben
         automáticamente un código. Si no trae <code>costo</code>, los productos existentes conservan el suyo.
       </p>

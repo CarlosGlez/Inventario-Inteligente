@@ -2,8 +2,11 @@
 import { leerCosto } from "./dinero.js";
 
 export const ENCABEZADOS = ["codigo", "nombre", "categoria", "stock_actual", "stock_minimo", "costo"];
-// Los Excel anteriores, sin la columna costo, se siguen aceptando.
+export const ENCABEZADOS_SIN_CATEGORIA = ["codigo", "nombre", "stock_actual", "stock_minimo", "costo"];
+export const ENCABEZADOS_ANTIGUOS_SIN_CATEGORIA = ENCABEZADOS_SIN_CATEGORIA.slice(0, 4);
+// Se aceptan los formatos anteriores sin costo y ahora también sin categoría.
 export const ENCABEZADOS_VIEJOS = ENCABEZADOS.slice(0, 5);
+export const SIN_CATEGORIA = "Sin categoría";
 
 const TEXTO_MAXIMO = 120;
 // Lo más que cabe en una columna integer de Postgres.
@@ -64,10 +67,13 @@ export function validarFilas(filas) {
   const nombres = (filas[0] ?? []).map((celda) => (estaVacio(celda) ? "" : String(celda).trim().toLowerCase()));
   while (nombres.length > 0 && nombres[nombres.length - 1] === "") nombres.pop();
 
-  const coincide = (esperado) => nombres.length === esperado.length && esperado.every((n, i) => n === nombres[i]);
-  if (!coincide(ENCABEZADOS) && !coincide(ENCABEZADOS_VIEJOS)) {
-    throw new Error(`La primera fila debe contener exactamente: ${ENCABEZADOS.join(", ")}.`);
+  const formatosAceptados = [ENCABEZADOS, ENCABEZADOS_VIEJOS, ENCABEZADOS_SIN_CATEGORIA, ENCABEZADOS_ANTIGUOS_SIN_CATEGORIA];
+  const formato = formatosAceptados.find((esperado) =>
+    nombres.length === esperado.length && esperado.every((nombre, indice) => nombre === nombres[indice]));
+  if (!formato) {
+    throw new Error(`La primera fila debe contener: ${ENCABEZADOS.join(", ")} (categoría y costo opcionales).`);
   }
+  const tieneCategoria = formato.includes("categoria");
 
   const productos = [];
   const errores = [];
@@ -77,6 +83,7 @@ export function validarFilas(filas) {
     if (fila.every(estaVacio)) continue; // fila en blanco
     try {
       const datos = Object.fromEntries(nombres.map((nombre, columna) => [nombre, fila[columna]]));
+      if (!tieneCategoria || estaVacio(datos.categoria)) datos.categoria = SIN_CATEGORIA;
       const producto = limpiarProducto(datos, { costoObligatorio: false });
       if (vistos.has(producto.codigo)) {
         throw new Error(`codigo: '${producto.codigo}' aparece más de una vez en el archivo.`);

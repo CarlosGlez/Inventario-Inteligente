@@ -4,6 +4,8 @@ const claveCategoria = (valor) => String(valor ?? "")
   .replace(/[\u0300-\u036f]/g, "")
   .toLocaleLowerCase("es");
 
+export const categoriaCoincide = (a, b) => claveCategoria(a) === claveCategoria(b);
+
 export function categoriasUnicas(valores) {
   const unicas = new Map();
   for (const valor of valores) {

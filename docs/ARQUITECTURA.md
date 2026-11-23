@@ -38,6 +38,10 @@ flowchart LR
 
 ```mermaid
 erDiagram
+  CATEGORIAS {
+    text nombre PK
+    timestamptz created_at
+  }
   PRODUCTS {
     bigint id PK
     text codigo UK
@@ -115,6 +119,7 @@ erDiagram
     numeric costo_unitario
   }
   PRODUCTS ||--o{ MOVEMENTS : "product_code (histórico textual)"
+  CATEGORIAS ||--o{ PRODUCTS : "products.categoria (mantenido por trigger)"
   ALERTS }o..o{ PRODUCTS : "items JSONB snapshot"
   PROFILES ||--o{ ORDENES_COMPRA : "creada_por"
   PROVEEDORES ||--o{ PROVEEDOR_PRODUCTOS : surte
@@ -126,6 +131,8 @@ erDiagram
 ```
 
 `movements.product_code` se guarda como texto para conservar historial aunque se elimine un producto; por ello el vínculo no es una FK. `alerts.items` es una instantánea JSON de los artículos incluidos en el aviso.
+
+`categorias` es un catálogo persistente. `products.categoria` conserva el nombre por compatibilidad; un trigger registra nuevas categorías al crear, editar o importar productos. El catálogo conserva sus entradas cuando ya no hay productos asociados.
 
 ## Pronóstico y selección
 

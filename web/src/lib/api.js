@@ -75,17 +75,19 @@ export async function consultarModoCorreo() {
 
 /** Lo que necesita la pantalla principal, en una sola ida a la base. */
 export async function cargarInventario() {
-  const [productos, consumo, ventas, resumen] = await Promise.all([
+  const [productos, consumo, ventas, resumen, categorias] = await Promise.all([
     supabase.from("products").select("*"),
     supabase.from("consumo_30d").select("*"),
     cargarVentasAnuales(),
     supabase.from("resumen_inventario").select("*").single(),
+    supabase.from("categorias").select("nombre").order("nombre"),
   ]);
   return {
     productos: revisar(productos).sort(porNombre),
     consumo: revisar(consumo),
     ventas,
     resumen: revisar(resumen),
+    categorias: revisar(categorias).map(({ nombre }) => nombre),
   };
 }
 

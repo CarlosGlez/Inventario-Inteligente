@@ -55,7 +55,7 @@ export default function Inventario() {
     });
   }, [datos]);
   const prioridad = useMemo(() => prioridadReabasto(productos), [productos]);
-  const categorias = useMemo(() => categoriasUnicas(productos.map((p) => p.categoria)), [productos]);
+  const categorias = useMemo(() => categoriasUnicas(datos?.categorias ?? []), [datos?.categorias]);
 
   // Ejecuta una acción, muestra el resultado y recarga la lista.
   // Devuelve true si salió bien (los formularios lo usan para limpiarse).

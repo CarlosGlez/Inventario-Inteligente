@@ -22,7 +22,7 @@ Lee este documento junto con `README.md` y `docs/ARQUITECTURA.md` antes de modif
 | Compra mínima del proveedor | **Cubierto** | No forma parte del flujo actual. La aplicación ignora el campo heredado y no debe volver a presentarlo como requisito. |
 | Órdenes por proveedor | **Cubierto** | Cada orden pertenece a un solo proveedor; sus líneas pueden incluir varios productos de ese proveedor. Al armar órdenes desde alertas, agrupar por proveedor. Nunca mezclar proveedores en una orden. |
 | SKU incremental e inmutable | **Cubierto** | El SKU lo genera la base y el formulario no permite editarlo. Migración `0015_codigos_producto_automaticos.sql` confirmada aplicada por el usuario. |
-| Categorías en productos y Excel | **Parcial; diseño confirmado** | El repositorio ya tiene `products.categoria` y el alta permite usar/crear una categoría. Añadir persistencia de catálogo independiente, mostrar/editar categoría en el producto e incluirla como columna opcional en importación/exportación y en el Excel de ejemplo. Los archivos anteriores sin esa columna deben seguir funcionando; si falta, usar `Sin categoría`. Ver prerrequisito confirmado. |
+| Categorías en productos y Excel | **Implementado localmente; migración remota pendiente de comprobar** | Se conserva `products.categoria`, el catálogo independiente se siembra con los valores existentes y el trigger lo mantiene al crear/editar/importar productos. La tabla Inventario carga categorías del catálogo y conserva compatibilidad con Excel sin columna de categoría, que usa `Sin categoría`. La exportación y el Excel de ejemplo incluyen la columna. Aplicar/verificar `0018_categorias.sql` en el proyecto remoto antes de marcar cubierto. |
 | Alta y movimientos | **Cubierto para el alcance especificado** | Ya hay entradas/salidas, motivos ajustados al tipo de movimiento, validaciones y SKU no editable. La solicitud general de “perfeccionar alta y salidas” se retira como tarea independiente; no se inventan cambios adicionales. |
 | Proveedor por producto | **Pendiente** | Cada producto tendrá exactamente un proveedor activo y será obligatorio asignarlo al registrar el producto. Se podrá asignar desde el formulario/sección de Inventario y desde Proveedores, en la opción “Asignar producto”. Bloquear el archivo del proveedor único hasta reasignar el producto. |
 | Reabastecimiento desde alertas | **Parcial** | El flujo manual actual es el correcto: no crear órdenes automáticamente por movimientos. Compras/admin puede armar órdenes desde productos/alertas y deben agruparse por proveedor. El botón del aviso de stock crea directamente un borrador para ese producto; conservar las órdenes separadas por proveedor. |
@@ -113,6 +113,7 @@ La cuenta/datos demo deben verificarse con el seed existente y documentarse para
 
 - Inventario, alta, sugerencias y roles: `web/src/paginas/Inventario.jsx`, `web/src/componentes/FormularioProducto.jsx`, `web/src/componentes/Prioridad.jsx`.
 - Pronóstico/ventas: `web/src/lib/pronostico.js`, `web/src/lib/pronostico-avanzado.js`, `web/src/lib/api.js`; vistas SQL en `supabase/migrations/0002_funciones.sql` y `0007_ventas_pronostico.sql`.
+- Categorías: `web/src/lib/categorias.js`, lectura desde `web/src/lib/api.js`, persistencia mediante `supabase/migrations/0018_categorias.sql`.
 - Proveedor por producto: `web/src/paginas/Proveedores.jsx`, tabla `proveedor_productos` en `supabase/migrations/0008_proveedores_compras_roles.sql`.
 - Órdenes, PDF y recepción: `web/src/paginas/Ordenes.jsx`, `supabase/functions/revisar-inventario/index.ts`, migraciones de órdenes existentes hasta `0017`.
 - Alertas SMTP: `supabase/functions/revisar-inventario/{correo,entrega,index}.ts` y `docs/CONFIGURAR_CORREO.md`.
@@ -122,6 +123,6 @@ La cuenta/datos demo deben verificarse con el seed existente y documentarse para
 ## Estado de migraciones y verificación
 
 - El usuario confirmó aplicadas las migraciones `0015_codigos_producto_automaticos.sql`, `0016_ignorar_compra_minima_proveedor.sql` y `0017_orden_rapida_producto_agotado.sql`.
-- `0011_costos_alertas_utf8.sql` ya ocupa el nombre/secuencia `0011`; la nueva migración de catálogo, si se confirma, debe seguir la secuencia vigente (previsión `0018_categorias.sql`). Revisar el directorio y el historial remoto antes de crear/aplicar.
+- `0011_costos_alertas_utf8.sql` ya ocupa la secuencia `0011`. `0018_categorias.sql` está creada en esta rama; verificar el historial de Supabase antes de aplicarla y registrar su estado remoto.
 - La verificación web previa dio 164/166: dos expectativas antiguas buscaban el campo editable `Código` y el valor interno `sin_clasificar`; el build pasó en esa ejecución. Esto es evidencia histórica, no resultado vigente de la entrega.
 - No hay en este plan evidencia de ejecución de pruebas SQL remotas ni de correo real. Registrar resultados nuevos al completar cada etapa.
