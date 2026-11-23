@@ -9,7 +9,7 @@ Este documento ayuda al equipo a explicar qué ofrece la aplicación, qué se he
 
 - **Heredado:** funcionalidades observadas en el miniproyecto original Flask/SQLite y conservadas en la versión actual React/Supabase.
 - **Nuevo equipo, integrado en `main`:** cambios de ampliación que ya están en `main` del fork, con último commit de integración `a92a395`.
-- **Rama pendiente de integrar:** catálogo persistente de categorías, commit `dc0ad82` en `feat/catalogo-categorias-persistente`. Está publicado en GitHub, pero no se ha integrado a `main` y la migración remota `0018_categorias.sql` no se ha aplicado/verificado.
+- **Integrado y verificado:** catálogo persistente de categorías (rama `feat/catalogo-categorias-persistente`). La migración `0018_categorias.sql` se aplicó y verificó en Supabase remoto el 2026-11-22.
 - **Pendiente:** requisitos todavía no implementados según el plan consolidado. No se presentan como funciones disponibles en la demo.
 - **Implementado pero sin verificación de despliegue:** hay código/migraciones locales, pero hace falta validar el comportamiento contra Supabase, SMTP o el entorno de entrega.
 
@@ -98,7 +98,7 @@ El historial del fork y el README identifican esta etapa como la ampliación del
 - Ayuda contextual para explicar motivos de movimiento y selección de opciones según entrada o salida.
 - Alta de producto con selector para elegir categoría existente o crear una nueva.
 
-## 3. Funcionalidad en rama, aún no disponible en `main`
+## 3. Funcionalidad integrada en la entrega final
 
 ### Catálogo persistente de categorías
 
@@ -107,7 +107,8 @@ El historial del fork y el README identifican esta etapa como la ampliación del
 - La base registra categorías al crear, editar o importar productos; se conservó `products.categoria` para evitar duplicar el campo.
 - La importación acepta Excel con o sin la columna `categoria`; si no viene, asigna `Sin categoría`.
 - La exportación y el Excel de ejemplo ya incluyen la columna `categoria`.
-- **Estado:** commit `dc0ad82` ya está subido a una rama, no integrado a `main`; migración todavía no aplicada/verificada en Supabase remoto.
+- **Estado:** integrado en la rama `chore/fase0-base`; `0018` aplicada y verificada en Supabase remoto el 2026-11-22. Si en otro entorno la tabla `categorias` aún no existe, Inventario sigue cargando y usa las categorías presentes en los productos.
+- **Corrección relacionada:** las entradas con motivo `compra`, `devolucion` o `ajuste` fallaban en producción porque `0014` no estaba aplicada y su restricción de `0007` seguía vigente. Se aplicaron `0014` y la nueva `0019_motivo_compra_movimientos.sql` (verificadas el 2026-11-22).
 
 ## 4. Requisitos pendientes del plan de entrega
 

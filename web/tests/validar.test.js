@@ -106,7 +106,7 @@ describe("validarFilas", () => {
   });
 
   it("rechaza un encabezado distinto", () => {
-    const esperado = "La primera fila debe contener exactamente: codigo, nombre, categoria, stock_actual, stock_minimo, costo.";
+    const esperado = "La primera fila debe contener: codigo, nombre, categoria, stock_actual, stock_minimo, costo (categoría y costo opcionales).";
     expect(() => validarFilas([["nombre", "codigo", "categoria", "stock_actual", "stock_minimo", "costo"], ["A", "P1", "Otra", 1, 1, 1]])).toThrow(esperado);
     expect(() => validarFilas([["codigo", "nombre"], ["P1", "A"]])).toThrow(esperado);
     expect(() => validarFilas([])).toThrow(esperado);

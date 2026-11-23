@@ -142,12 +142,14 @@ describe("Inventario", () => {
     abrir();
     const formulario = (await screen.findByText("Registrar producto")).closest("section");
     const escribir = (etiqueta, valor) => fireEvent.change(within(formulario).getByLabelText(etiqueta), { target: { value: valor } });
-    escribir("Código", "P099"); escribir("Nombre", "Tijeras"); escribir("Categoría", "Oficina");
+    // El código lo asigna la base; la categoría nueva se crea desde el selector.
+    expect(within(formulario).queryByLabelText("Código")).toBeNull();
+    escribir("Nombre", "Tijeras"); escribir("Categoría", "__crear_categoria__"); escribir("Nueva categoría", "Oficina");
     escribir("Costo unitario ($)", "35.50"); escribir("Stock actual", "4"); escribir("Stock mínimo", "2");
     fireEvent.click(within(formulario).getByRole("button", { name: "Guardar producto" }));
     expect(await screen.findByText("Producto registrado.")).toBeTruthy();
     expect(api.guardarProducto).toHaveBeenCalledWith(
-      { codigo: "P099", nombre: "Tijeras", categoria: "Oficina", costo: "35.50", stock_actual: "4", stock_minimo: "2" }, null);
+      { nombre: "Tijeras", categoria: "Oficina", costo: "35.50", stock_actual: "4", stock_minimo: "2" }, null);
     expect(api.cargarInventario).toHaveBeenCalledTimes(2);
   });
 
@@ -215,7 +217,7 @@ describe("Movimientos", () => {
     abrir("/movimientos");
     const fila = (await screen.findByText("Bolígrafo azul")).closest("tr");
     expect(within(fila).getByText("Salida")).toBeTruthy();
-    expect([...fila.querySelectorAll("td")].slice(4).map((celda) => celda.textContent)).toEqual(["sin_clasificar", "3", "10", "7"]);
+    expect([...fila.querySelectorAll("td")].slice(4).map((celda) => celda.textContent)).toEqual(["Sin clasificar", "3", "10", "7"]);
   });
 });
 

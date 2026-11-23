@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { dinero } from "../lib/dinero.js";
+import { categoriaCoincide } from "../lib/categorias.js";
 import DiasRestantes from "./DiasRestantes.jsx";
 
 // Ancho de la barrita de stock: llena cuando el stock es el doble del mínimo.
@@ -51,7 +52,7 @@ export default function TablaProductos({ productos, categorias, ocupado, puedeEd
   const buscado = texto.trim().toLowerCase();
   const visibles = productos.filter((p) =>
     `${p.codigo} ${p.nombre}`.toLowerCase().includes(buscado)
-    && (!categoria || p.categoria === categoria)
+    && (!categoria || categoriaCoincide(p.categoria, categoria))
     && (!soloUrgentes || p.urgente));
 
   const alternar = (clave) => (evento) => {

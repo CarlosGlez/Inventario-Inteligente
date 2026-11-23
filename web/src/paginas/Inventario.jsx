@@ -55,7 +55,11 @@ export default function Inventario() {
     });
   }, [datos]);
   const prioridad = useMemo(() => prioridadReabasto(productos), [productos]);
-  const categorias = useMemo(() => categoriasUnicas(productos.map((p) => p.categoria)), [productos]);
+  // Catálogo persistente + categorías en uso, por si alguna aún no está en el catálogo.
+  const categorias = useMemo(
+    () => categoriasUnicas([...(datos?.categorias ?? []), ...productos.map((p) => p.categoria)]),
+    [datos?.categorias, productos],
+  );
 
   // Ejecuta una acción, muestra el resultado y recarga la lista.
   // Devuelve true si salió bien (los formularios lo usan para limpiarse).

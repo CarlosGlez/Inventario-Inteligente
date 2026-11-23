@@ -62,6 +62,8 @@ En el panel abre **SQL Editor**. Para cada archivo, en este orden, pega su conte
 
 Después aplica, en orden, `0007_ventas_pronostico.sql`, `0008_proveedores_compras_roles.sql`, `0009_pronostico_alertas_backoff.sql` y `0010_correo_ordenes.sql`. Los relojes `0004` y `0006` se configuran en el paso 6.
 
+Para instalar o actualizar el proyecto, revisa el historial de migraciones y aplica en orden numérico las migraciones pendientes posteriores a `0010`; en esta versión llegan hasta `0018_categorias.sql`. Esta última crea un catálogo persistente y conserva los nombres de categoría existentes.
+
 Los dos archivos de reloj (`0004_cron.sql` y `0006_cron_reporte.sql`) se corren más adelante, en el paso 6.
 
 **Comprobación (opcional):** pega `supabase/tests/flujo.sql` y pulsa Run. Debe responder `TODAS LAS PRUEBAS PASARON`. No deja datos: todo se deshace al terminar.

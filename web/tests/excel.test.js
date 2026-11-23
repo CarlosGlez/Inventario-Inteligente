@@ -54,7 +54,7 @@ describe("leerExcel", () => {
   });
 
   it("un libro con la hoja vacía pide el encabezado", async () => {
-    await expect(leerExcel(await libro([]))).rejects.toThrow("La primera fila debe contener exactamente");
+    await expect(leerExcel(await libro([]))).rejects.toThrow("La primera fila debe contener:");
   });
 });
 
