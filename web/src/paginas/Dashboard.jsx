@@ -167,38 +167,39 @@ export default function Dashboard() {
 
         <section className="card table-card">
           <div className="table-head">
-            <h3>Requiere atención</h3>
-            <span className="muted">{atencion.length} producto(s) · críticos primero; dentro de cada estado, mayor costo del faltante</span>
+            <div>
+              <h3>Requiere atención</h3>
+              <p className="muted table-note">{atencion.length} producto(s). Críticos primero; dentro de cada estado, mayor costo del faltante.</p>
+            </div>
           </div>
           {atencion.length === 0 ? (
-            <p className="empty-ok">Ningún producto {categoria ? "de esta categoría " : ""}está crítico ni en atención.</p>
+            <p className="empty-ok table-empty">Ningún producto {categoria ? "de esta categoría " : ""}está crítico ni en atención.</p>
           ) : (
-            <div className="table-scroll tabla-tarjetas">
+            <div className="table-scroll tabla-tarjetas attention-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Producto</th><th>Categoría</th><th>Stock</th><th>Mínimo</th><th>Cobertura</th><th>Agotamiento estimado</th>
-                    <th>Sugerido</th><th>Costo del faltante</th><th>Proveedor</th><th>Estado</th><th>Orden</th>
+                    <th>Producto</th><th>Categoría</th><th>Stock / mín.</th><th>Cobertura</th><th>Se agota</th>
+                    <th className="num">Sugerido</th><th className="num">Costo faltante</th><th>Proveedor</th><th>Estado</th><th>Orden</th>
                   </tr>
                 </thead>
                 <tbody>
                   {atencion.map((p) => (
                     <tr key={p.id} className={p.estado === "critico" ? "low-row" : ""}>
-                      <td data-etiqueta="Producto"><button type="button" className="link-button" onClick={() => setProductoId(p.id)}>{p.nombre}</button><small className="sub">{p.codigo}</small></td>
+                      <td data-etiqueta="Producto"><button type="button" className="link-button" onClick={() => setProductoId(p.id)}>{p.nombre}</button><small className="sub nowrap">{p.codigo}</small></td>
                       <td data-etiqueta="Categoría">{p.categoria}</td>
-                      <td data-etiqueta="Stock">{p.stock_actual}</td>
-                      <td data-etiqueta="Mínimo">{p.stock_minimo}</td>
-                      <td data-etiqueta="Cobertura">{p.dias_restantes === null ? "Sin rotación" : formatoDias(p.dias_restantes)}</td>
-                      <td data-etiqueta="Agotamiento">{Number(p.stock_actual) === 0 ? "Agotado" : p.fecha_agotamiento_estimada ?? "—"}</td>
-                      <td data-etiqueta="Sugerido">{p.sugerido} u.</td>
-                      <td data-etiqueta="Costo faltante">{dinero(p.costo_faltante)}</td>
-                      <td data-etiqueta="Proveedor">{p.proveedor?.nombre ?? <span className="muted">Sin proveedor</span>}</td>
+                      <td data-etiqueta="Stock / mín." className="nowrap">{p.stock_actual} <small className="muted">/ {p.stock_minimo}</small></td>
+                      <td data-etiqueta="Cobertura" className="nowrap">{p.dias_restantes === null ? "Sin rotación" : formatoDias(p.dias_restantes)}</td>
+                      <td data-etiqueta="Se agota" className="nowrap">{Number(p.stock_actual) === 0 ? "Agotado" : p.fecha_agotamiento_estimada ?? "—"}</td>
+                      <td data-etiqueta="Sugerido" className="num nowrap">{p.sugerido} u.</td>
+                      <td data-etiqueta="Costo faltante" className="num nowrap">{dinero(p.costo_faltante)}</td>
+                      <td data-etiqueta="Proveedor">{p.proveedor?.nombre ?? <span className="muted nowrap">Sin proveedor</span>}</td>
                       <td data-etiqueta="Estado"><Estado estado={p.estado} /></td>
-                      <td data-etiqueta="Orden">
+                      <td data-etiqueta="Orden" className="nowrap">
                         {!puedeOrdenar ? <span className="muted">Solo lectura</span>
-                          : !p.proveedor ? <Link to="/proveedores">Asignar proveedor</Link>
+                          : !p.proveedor ? <Link to="/proveedores">Asignar</Link>
                             : Number(p.stock_actual) === 0
-                              ? <button type="button" className="primary" disabled={ocupado} onClick={() => armarOrden(p)}>Armar orden</button>
+                              ? <button type="button" className="primary small" disabled={ocupado} onClick={() => armarOrden(p)}>Armar orden</button>
                               : <Link to="/alertas">Desde alertas</Link>}
                       </td>
                     </tr>

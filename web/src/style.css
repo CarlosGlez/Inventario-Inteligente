@@ -396,3 +396,19 @@ button:disabled:hover { border-color: var(--border); color: inherit; }
 @media (max-width: 470px) {
   .dashboard-stats { grid-template-columns: 1fr; }
 }
+
+/* Tabla "Requiere atención": cabe en la tarjeta; si no, se desplaza dentro de ella. */
+.table-note { margin: 4px 0 0; font-size: .84rem; }
+.table-empty { padding: 0 22px 22px; }
+.tabla-tarjetas.attention-table { overflow-x: auto; }
+.attention-table table { font-size: .9rem; }
+.attention-table th { white-space: nowrap; }
+.attention-table th, .attention-table td { padding-left: 12px; padding-right: 12px; }
+.attention-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.attention-table td .badge { white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+button.small { padding: 6px 12px; font-size: .84rem; }
+@media (max-width: 760px) {
+  .attention-table .num { text-align: left; }
+}
+.attention-table td { vertical-align: middle; }
